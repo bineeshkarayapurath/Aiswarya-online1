@@ -6,6 +6,17 @@ const Otp = require('../models/Otp');
 const { signToken } = require('../middleware/auth');
 const { generateOtp, sendWhatsAppMessage, buildOtpMessage } = require('../services/whatsappService');
 
+// Normalise a phone number so "9999999999", "919999999999", "+91 99999 99999"
+// all match the same value (Indian mobile = 10 digits).
+function canonicalPhone(v) {
+  let digits = String(v || '').replace(/\D/g, '');
+  if (digits.length === 12 && digits.startsWith('91')) digits = digits.slice(2);
+  else if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1);
+  return digits;
+}
+
+const SUPER_ADMIN_PHONES = config.SUPER_ADMIN_PHONES.map(canonicalPhone);
+
 async function hashOtp(code) {
   return bcrypt.hash(code, 10);
 }
@@ -206,9 +217,10 @@ exports.adminLoginSendOtp = async (req, res) => {
   try {
     const { phone } = req.body;
     const normalized = String(phone || '').trim();
+    const canonical = canonicalPhone(normalized);
     const isTestAdmin =
-      config.NODE_ENV !== 'production' && normalized === config.TEST_PHONE;
-    if (!config.SUPER_ADMIN_PHONES.includes(normalized) && !isTestAdmin) {
+      config.NODE_ENV !== 'production' && canonical === canonicalPhone(config.TEST_PHONE);
+    if (!SUPER_ADMIN_PHONES.includes(canonical) && !isTestAdmin) {
       return res.status(403).json({ message: 'Unauthorised phone number' });
     }
     if (isTestAdmin || config.NODE_ENV !== 'production') {
@@ -231,6 +243,7 @@ exports.adminLoginVerify = async (req, res) => {
   try {
     const { phone, code, masterPin } = req.body;
     const normalized = String(phone || '').trim();
+    const canonical = canonicalPhone(normalized);
     const devBypass =
       config.NODE_ENV !== 'production' &&
       String(masterPin || '').trim() === '123456' &&
@@ -240,17 +253,19 @@ exports.adminLoginVerify = async (req, res) => {
       return res.status(403).json({ message: 'Invalid master PIN' });
     }
     const isTestAdmin =
-      config.NODE_ENV !== 'production' && normalized === config.TEST_PHONE;
-    if (!devBypass && !config.SUPER_ADMIN_PHONES.includes(normalized) && !isTestAdmin) {
+      config.NODE_ENV !== 'production' && canonical === canonicalPhone(config.TEST_PHONE);
+    if (!devBypass && !SUPER_ADMIN_PHONES.includes(canonical) && !isTestAdmin) {
       return res.status(403).json({ message: 'Unauthorised phone number' });
     }
     await verifyOtp(normalized, String(code || '').trim());
 
-    let user = await User.findOne({ phoneNumber: normalized });
+    let user = await User.findOne({
+      $or: [{ phoneNumber: canonical }, { phoneNumber: normalized }],
+    });
     if (!user) {
       user = new User({
-        fullName: normalized,
-        phoneNumber: normalized,
+        fullName: canonical,
+        phoneNumber: canonical,
         dob: new Date('1990-01-01'),
         address: 'Club Office',
         role: config.ROLES.SUPER_ADMIN,
