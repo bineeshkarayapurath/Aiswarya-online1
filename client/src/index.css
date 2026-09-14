@@ -1,0 +1,141 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Runtime CSS variables are set from src/config/clubConfig.js by
+   src/lib/theme.js (applyClubTheme) — edit that config to re-theme. */
+:root {
+  color-scheme: light;
+  --primary-900: #0f3d2e;
+  --primary-500: #1f9460;
+  --accent: #b8860b;
+  --dark-bg: #022c22;
+  --dark-surface: #0a382c;
+  --dark-surface-alt: #0d4033;
+  --dark-border: rgba(52, 211, 153, 0.2);
+  --dark-border-soft: rgba(52, 211, 153, 0.15);
+  --dark-text-bright: #f0fdf4;
+  --dark-text: #d1fae5;
+  --dark-text-dim: #a7f3d0;
+  --toast-bg: #0f3d2e;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-slate-50 text-slate-800 antialiased dark:bg-emerald-950 dark:text-slate-100;
+  font-family: 'Plus Jakarta Sans', 'Manrope', 'Noto Sans Malayalam', system-ui, sans-serif;
+}
+
+/* Dark mode surfaces */
+html.dark ::-webkit-scrollbar-track {
+  background: var(--dark-bg);
+}
+html.dark ::-webkit-scrollbar-thumb {
+  background: var(--primary-500);
+}
+
+/* Long Malayalam words / strings with no spaces must wrap instead of blowing
+   out table cells, cards or inputs. */
+input,
+textarea,
+select,
+button,
+option {
+  font-family: inherit;
+}
+th,
+td {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--primary-900);
+  border-radius: 9999px;
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-900 px-6 py-3 font-semibold text-white shadow-md shadow-emerald-900/20 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+  .btn-gold {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-gold px-6 py-3 font-semibold text-white shadow-md shadow-gold/30 transition hover:bg-gold-700 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+  .btn-outline {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border-2 border-emerald-900 px-6 py-3 font-semibold text-emerald-900 transition hover:bg-emerald-900 hover:text-white disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-400 dark:text-emerald-300 dark:hover:bg-emerald-400 dark:hover:text-emerald-950;
+  }
+  .card {
+    @apply rounded-2xl bg-white shadow-lg shadow-slate-200/60 dark:bg-emerald-900/50 dark:shadow-none dark:ring-1 dark:ring-emerald-800/40;
+  }
+  .input {
+    @apply w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none transition focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/20 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-100;
+  }
+  .label {
+    @apply mb-1 block text-sm font-semibold text-slate-700 dark:text-slate-300;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold;
+  }
+  .glass {
+    @apply border border-white/40 bg-white/70 backdrop-blur-md dark:border-emerald-400/20 dark:bg-emerald-950/70;
+  }
+}
+
+@layer utilities {
+  .dark .bg-white {
+    background-color: var(--dark-surface) !important;
+  }
+  .dark .bg-slate-50 {
+    background-color: var(--dark-surface-alt) !important;
+  }
+  .dark .border-slate-200 {
+    border-color: var(--dark-border) !important;
+  }
+  .dark .border-slate-100 {
+    border-color: var(--dark-border-soft) !important;
+  }
+  .dark .text-slate-900 {
+    color: var(--dark-text-bright) !important;
+  }
+  .dark .text-slate-800 {
+    color: var(--dark-text-bright) !important;
+  }
+  .dark .text-slate-700 {
+    color: var(--dark-text) !important;
+  }
+  .dark .text-slate-600 {
+    color: var(--dark-text) !important;
+  }
+  .dark .text-slate-500 {
+    color: var(--dark-text-dim) !important;
+  }
+  .dark .text-slate-400 {
+    color: var(--dark-text-dim) !important;
+  }
+
+  @media print {
+    .dark .bg-white {
+      background-color: #fff !important;
+    }
+    .dark .bg-slate-50 {
+      background-color: #fff !important;
+    }
+    .dark .text-slate-900,
+    .dark .text-slate-800,
+    .dark .text-slate-700,
+    .dark .text-slate-600,
+    .dark .text-slate-500,
+    .dark .text-slate-400 {
+      color: #111 !important;
+    }
+  }
+}
