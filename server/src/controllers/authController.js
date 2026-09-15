@@ -4,7 +4,7 @@ const config = require('../config/constants');
 const User = require('../models/User');
 const Otp = require('../models/Otp');
 const { signToken } = require('../middleware/auth');
-const { generateOtp, sendWhatsAppMessage, buildOtpMessage } = require('../services/whatsappService');
+const { generateOtp, sendOtpMessage } = require('../services/smsService');
 
 // Normalise a phone number so "9999999999", "919999999999", "+91 99999 99999"
 // all match the same value (Indian mobile = 10 digits).
@@ -32,7 +32,7 @@ async function createOtp(identifier) {
 
 async function verifyOtp(identifier, code) {
   const cleanCode = String(code || '').trim();
-  // DEV MODE bypass: the fixed test OTP skips WhatsApp OTP entirely.
+  // DEV MODE bypass: the fixed test OTP skips real SMS delivery entirely.
   if (config.NODE_ENV !== 'production' && cleanCode === config.TEST_OTP) {
     return true;
   }
@@ -64,20 +64,17 @@ async function verifyOtp(identifier, code) {
 
 exports.sendOtp = async (req, res) => {
   try {
-    const { identifier } = req.body;
-    if (!identifier || String(identifier).length < 6) {
+    const phone = String(req.body.phoneNumber || req.body.identifier || '').trim();
+    if (!phone || phone.length < 6) {
       return res.status(400).json({ message: 'A valid phone number is required' });
     }
-    const phone = String(identifier).trim();
 
     const code = await createOtp(phone);
-    const clubName = `${config.CLUB.name}, ${config.CLUB.place}`;
-    const body = buildOtpMessage(clubName, code, config.OTP_EXPIRY_MINUTES);
-    const result = await sendWhatsAppMessage(phone, body);
+    const result = await sendOtpMessage(phone, code);
 
     return res.json({
       message: 'OTP sent',
-      devOtp: result.devOtp || code,
+      devOtp: result.devOtp || null,
     });
   } catch (err) {
     return res.status(500).json({ message: err.message || 'Failed to send OTP' });
@@ -161,7 +158,7 @@ exports.register = async (req, res) => {
     if (photoUrl) user.photoUrl = photoUrl;
 
     const verified = phoneVerified === true || phoneVerified === 'true';
-    const via = ['firebase', 'whatsapp', 'manual'].includes(phoneVerifiedVia)
+    const via = ['firebase', 'sms', 'whatsapp', 'manual'].includes(phoneVerifiedVia)
       ? phoneVerifiedVia
       : verified ? 'manual' : '';
     user.phoneVerified = verified;
@@ -230,10 +227,8 @@ exports.adminLoginSendOtp = async (req, res) => {
       });
     }
     const code = await createOtp(normalized);
-    const clubName = `${config.CLUB.name}, ${config.CLUB.place}`;
-    const body = buildOtpMessage(clubName, code, config.OTP_EXPIRY_MINUTES);
-    const result = await sendWhatsAppMessage(normalized, body);
-    return res.json({ message: 'OTP sent', devOtp: result.devOtp || code });
+    const result = await sendOtpMessage(normalized, code);
+    return res.json({ message: 'OTP sent', devOtp: result.devOtp || null });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }

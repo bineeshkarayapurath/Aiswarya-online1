@@ -87,7 +87,7 @@ exports.approveRequest = async (req, res) => {
       return res.status(400).json({ message: 'Already approved' });
     }
 
-    // If the applicant never completed OTP (Firebase SMS / WhatsApp), the
+    // If the applicant never completed OTP verification, the
     // admin must explicitly mark Manual Verification to approve the phone.
     const bypassOtp = manualVerify === true || manualVerify === 'true';
     if (!user.phoneVerified && !bypassOtp) {

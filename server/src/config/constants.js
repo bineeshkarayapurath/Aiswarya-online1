@@ -24,12 +24,6 @@ module.exports = {
     .split(',')
     .map((p) => p.trim())
     .filter(Boolean),
-  WHATSAPP: {
-    enabled: process.env.WHATSAPP_ENABLED === 'true',
-    token: process.env.WHATSAPP_TOKEN || '',
-    phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
-    apiUrl: process.env.WHATSAPP_API_URL || 'https://graph.facebook.com/v19.0',
-  },
   MEMBERSHIP_PREFIX: process.env.MEMBERSHIP_PREFIX || 'ALC',
   MEMBERSHIP_YEAR: process.env.MEMBERSHIP_YEAR || new Date().getFullYear(),
   // Library lending rules
@@ -37,6 +31,14 @@ module.exports = {
   FINE_PER_DAY: Number(process.env.FINE_PER_DAY || 5),
   STORAGE_DIR: process.env.STORAGE_DIR || path.join(__dirname, '..', '..', 'storage'),
   OTP_EXPIRY_MINUTES: parseInt(process.env.OTP_EXPIRY_MINUTES || '5', 10),
+  OTP_DIGITS: parseInt(process.env.OTP_DIGITS || '6', 10),
+  FAST2SMS: {
+    apiKey: process.env.FAST2SMS_API_KEY || '',
+    apiUrl: process.env.FAST2SMS_API_URL || 'https://www.fast2sms.com/dev/bulkV2',
+    route: process.env.FAST2SMS_ROUTE || 'q',
+    senderId: process.env.FAST2SMS_SENDER_ID || 'AISWRY',
+    templateId: process.env.FAST2SMS_TEMPLATE_ID || '',
+  },
   // Optional free hosting for uploaded images (ImgBB). When empty, uploads are
   // kept on the server's local storage and served via /uploads/.
   IMG_BB_API_KEY: process.env.IMG_BB_API_KEY || '',

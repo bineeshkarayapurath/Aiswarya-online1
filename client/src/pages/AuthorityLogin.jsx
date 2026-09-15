@@ -6,7 +6,7 @@ import api from '../api/client';
 import { normalizePhone } from '../lib/club';
 import { useAuth } from '../context/AuthContext';
 import OTPInput from '../components/OTPInput';
-import { FaShieldAlt, FaLock, FaWhatsapp, FaArrowLeft } from 'react-icons/fa';
+import { FaShieldAlt, FaLock, FaSms, FaArrowLeft } from 'react-icons/fa';
 
 export default function AuthorityLogin() {
   const navigate = useNavigate();
@@ -27,7 +27,7 @@ export default function AuthorityLogin() {
       if (res.data.devOtp) {
         toast(`DEV MODE OTP: ${res.data.devOtp}`, { icon: '🔑', duration: 20000 });
       } else {
-        toast.success('OTP sent on WhatsApp');
+        toast.success('OTP sent');
       }
       setStep(1);
     } catch (e) {
@@ -99,11 +99,11 @@ export default function AuthorityLogin() {
                   />
                 </div>
                 <button onClick={sendOtp} disabled={sending} className="btn-primary w-full">
-                  <FaWhatsapp className="text-xl" />
-                  {sending ? 'Sending OTP...' : 'Send WhatsApp OTP'}
+                  <FaSms className="text-xl" />
+                  {sending ? 'Sending OTP...' : 'Send OTP'}
                 </button>
                 <p className="text-center text-[11px] text-slate-400">
-                  A one-time password will be sent to the registered admin WhatsApp number.
+                  A one-time password will be sent to the registered admin mobile number.
                 </p>
               </>
             )}

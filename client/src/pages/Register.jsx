@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -6,7 +6,6 @@ import api from '../api/client';
 import { normalizePhone, CLUB } from '../lib/club';
 import OTPInput from '../components/OTPInput';
 import {
-  FaWhatsapp,
   FaUserPlus,
   FaUpload,
   FaArrowLeft,
@@ -14,25 +13,15 @@ import {
   FaCalendarAlt,
   FaSms,
 } from 'react-icons/fa';
-import {
-  isFirebaseConfigured,
-  startFirebasePhoneVerification,
-  confirmFirebaseOtp,
-  firebaseErrorMessage,
-} from '../lib/phoneAuth';
 import { uploadImages } from '../lib/uploadImages';
 
 export default function Register() {
   const navigate = useNavigate();
-  const firebaseReady = isFirebaseConfigured();
   const [step, setStep] = useState(0);
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [sending, setSending] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [verifyVia, setVerifyVia] = useState('');
-  const [fbError, setFbError] = useState('');
-  const confirmationRef = useRef(null);
   const [photo, setPhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState('');
   const [form, setForm] = useState({
@@ -56,9 +45,9 @@ export default function Register() {
     },
     {
       key: 'otp',
-      icon: firebaseReady ? FaSms : FaWhatsapp,
+      icon: FaSms,
       title: 'Verify Mobile Number',
-      desc: `Enter the 6-digit OTP sent via ${firebaseReady ? 'SMS' : 'WhatsApp'} to complete your application.`,
+      desc: 'Enter the 6-digit OTP sent to your mobile number to complete your application.',
     },
   ];
 
@@ -87,28 +76,16 @@ export default function Register() {
     if (!validateForm()) return;
     const cleanPhone = normalizePhone(phone);
     setSending(true);
-    setFbError('');
     try {
-      if (firebaseReady) {
-        confirmationRef.current = await startFirebasePhoneVerification(
-          `+91${cleanPhone}`,
-          'al-recaptcha'
-        );
-        setVerifyVia('firebase');
-        setStep(1);
-        toast.success(`SMS OTP sent to +91 ${cleanPhone}`);
+      const res = await api.post('/auth/send-otp', { identifier: cleanPhone });
+      if (res.data.devOtp) {
+        toast(`DEV MODE OTP: ${res.data.devOtp}`, { icon: '🔑', duration: 12000 });
       } else {
-        const res = await api.post('/auth/send-otp', { identifier: cleanPhone });
-        if (res.data.devOtp) {
-          toast(`DEV MODE OTP: ${res.data.devOtp}`, { icon: '🔑', duration: 12000 });
-        } else {
-          toast.success('OTP sent on WhatsApp');
-        }
-        setVerifyVia('whatsapp');
-        setStep(1);
+        toast.success('OTP sent');
       }
+      setStep(1);
     } catch (err) {
-      toast.error(err.response?.data?.message || firebaseErrorMessage(err));
+      toast.error(err.response?.data?.message || 'Failed to send OTP');
     } finally {
       setSending(false);
     }
@@ -162,22 +139,12 @@ export default function Register() {
 
   const verifyAndSubmit = async () => {
     if (otp.length !== 6) return toast.error('Enter the 6-digit OTP');
-    if (verifyVia === 'firebase') {
-      setFbError('');
-      try {
-        const confirmed = await confirmFirebaseOtp(confirmationRef.current, otp);
-        await submitApplication({ verified: true, via: 'firebase', uid: confirmed.firebaseUid });
-      } catch (err) {
-        setFbError(firebaseErrorMessage(err));
-      }
-      return;
-    }
     try {
       await api.post('/auth/verify-otp', {
         identifier: normalizePhone(phone),
         code: otp,
       });
-      await submitApplication({ verified: true, via: 'whatsapp', uid: '' });
+      await submitApplication({ verified: true, via: 'sms', uid: '' });
     } catch (err) {
       toast.error(err.response?.data?.message || 'Verification / registration failed');
     }
@@ -188,8 +155,6 @@ export default function Register() {
       'Submit without phone verification?\n\nIf you cannot receive the OTP, your number will be verified manually at the club office before approval.'
     );
     if (!ok) return;
-    setVerifyVia('skip');
-    setFbError('');
     await submitApplication({ verified: false, via: '', uid: '' });
   };
 
@@ -225,7 +190,6 @@ export default function Register() {
       </div>
 
       <div className="card p-8">
-        <div id="al-recaptcha" className="hidden" />
         <AnimatePresence mode="wait">
           <motion.div
             key={step}
@@ -356,7 +320,7 @@ export default function Register() {
                   </div>
 
                   <div className="sm:col-span-2">
-                    <label className="label">Mobile Number (WhatsApp) *</label>
+                    <label className="label">Mobile Number *</label>
                     <div className="flex gap-2">
                       <span className="input !w-16 text-center text-emerald-900">+91</span>
                       <input
@@ -369,24 +333,24 @@ export default function Register() {
                       />
                     </div>
                     <p className="mt-1 text-xs text-slate-400">
-                      Your WhatsApp number will be used for OTP login after approval.
+                      This number will be used for OTP login after approval.
                     </p>
                   </div>
                 </div>
 
                 <div className="rounded-xl bg-amber-50 p-4 text-xs leading-relaxed text-amber-800">
-                  📌 On submit, we will send a WhatsApp OTP to your mobile number to verify it.
+                  📌 On submit, we will send an OTP to your mobile number to verify it.
                   Your application is saved with <strong>PENDING APPROVAL</strong> status.
                 </div>
 
                 <button type="submit" disabled={sending} className="btn-primary w-full">
                   {sending ? (
                     <span className="flex items-center gap-2">
-                      <FaWhatsapp className="animate-pulse" /> Sending OTP...
+                      <FaSms className="animate-pulse" /> Sending OTP...
                     </span>
                   ) : (
                     <span className="flex items-center gap-2">
-                      <FaWhatsapp className="text-xl" /> Submit &amp; Verify OTP
+                      <FaSms className="text-xl" /> Submit &amp; Verify OTP
                     </span>
                   )}
                 </button>
@@ -412,12 +376,6 @@ export default function Register() {
 
                 <OTPInput length={6} value={otp} onChange={setOtp} onComplete={() => {}} />
 
-                {fbError && (
-                  <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-semibold text-red-600">
-                    {fbError}
-                  </div>
-                )}
-
                 <button
                   onClick={verifyAndSubmit}
                   disabled={submitting}
@@ -439,7 +397,7 @@ export default function Register() {
                       disabled={sending}
                       className="text-xs font-semibold text-emerald-900 underline underline-offset-2"
                     >
-                      {sending ? 'Resending...' : `Didn't receive? Resend ${firebaseReady ? 'SMS' : 'OTP'}`}
+                      {sending ? 'Resending...' : "Didn't receive? Resend OTP"}
                     </button>
                   </div>
                   <button

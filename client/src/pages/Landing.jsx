@@ -10,7 +10,7 @@ import {
   FaArrowRight,
   FaTrophy,
   FaHandsHelping,
-  FaWhatsapp,
+  FaSms,
   FaImages,
   FaCamera,
 } from 'react-icons/fa';
@@ -260,7 +260,7 @@ export default function Landing() {
             </p>
             <div className="mt-6 flex flex-wrap justify-center gap-4">
               <Link to="/register" className="btn-gold">
-                <FaWhatsapp /> {t('cta.registerWhatsApp')}
+                <FaSms /> {t('cta.registerNow')}
               </Link>
               <Link to="/member-login" className="btn-outline !border-white !text-white hover:!bg-white hover:!text-emerald-900">
                 {t('cta.alreadyMember')}

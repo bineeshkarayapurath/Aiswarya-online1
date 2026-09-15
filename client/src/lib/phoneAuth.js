@@ -1,5 +1,5 @@
 // Firebase Phone Authentication — loaded lazily so the app keeps working
-// (falling back to the own WhatsApp OTP flow) until VITE_FIREBASE_* values
+// (falling back to the server OTP flow) until VITE_FIREBASE_* values
 // are added to client/.env.
 
 const env = () => import.meta.env;

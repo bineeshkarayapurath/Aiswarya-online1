@@ -6,7 +6,7 @@ import api from '../api/client';
 import { normalizePhone } from '../lib/club';
 import { useAuth } from '../context/AuthContext';
 import OTPInput from '../components/OTPInput';
-import { FaUserLock, FaWhatsapp, FaArrowLeft, FaIdCardAlt } from 'react-icons/fa';
+import { FaUserLock, FaSms, FaArrowLeft, FaIdCardAlt } from 'react-icons/fa';
 
 export default function MemberLogin() {
   const navigate = useNavigate();
@@ -29,7 +29,7 @@ export default function MemberLogin() {
       if (res.data.devOtp) {
         toast(`DEV MODE OTP: ${res.data.devOtp}`, { icon: '🔑', duration: 12000 });
       } else {
-        toast.success('OTP sent on WhatsApp');
+        toast.success('OTP sent');
       }
       setStep(1);
     } catch (e) {
@@ -124,8 +124,8 @@ export default function MemberLogin() {
                   disabled={sending}
                   className="btn-primary w-full"
                 >
-                  <FaWhatsapp className="text-xl" />
-                  {sending ? 'Sending OTP...' : 'Login with WhatsApp OTP'}
+                  <FaSms className="text-xl" />
+                  {sending ? 'Sending OTP...' : 'Login with OTP'}
                 </button>
               </>
             )}

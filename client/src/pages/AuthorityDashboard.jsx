@@ -696,7 +696,7 @@ function PhoneBadge({ verified, via }) {
     );
   }
   const label =
-    via === 'firebase' ? 'SMS Verified' : via === 'manual' ? 'Manual Verified' : 'WhatsApp Verified';
+    via === 'manual' ? 'Manual Verified' : via === 'firebase' || via === 'sms' ? 'SMS Verified' : 'OTP Verified';
   const tone =
     via === 'manual' ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700';
   return (
@@ -904,7 +904,7 @@ function ApprovalsPanel() {
                     Manual Verification
                   </p>
                   <p className="mt-1 text-xs leading-relaxed text-amber-700/80">
-                    This applicant didn&apos;t complete SMS/WhatsApp OTP. Verify their phone in
+                    This applicant didn&apos;t complete the OTP verification. Verify their phone in
                     person or over a call, then enable manual verification to approve.
                   </p>
                   <button

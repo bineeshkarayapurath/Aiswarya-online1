@@ -65,8 +65,8 @@ export const en = {
   },
   cta: {
     title: 'Ready to join a community that grows together?',
-    sub: 'Register with your WhatsApp number, verify your OTP, and complete your application in under two minutes.',
-    registerWhatsApp: 'Register via WhatsApp',
+    sub: 'Register with your mobile number, verify your OTP, and complete your application in under two minutes.',
+    registerNow: 'Register Now',
     alreadyMember: "I'm already a member",
   },
   theme: {
@@ -135,8 +135,8 @@ export const ml = {
   },
   cta: {
     title: 'ഒന്നിച്ച് വളരുന്ന സമൂഹത്തിന്റെ ഭാഗമാകാൻ തയ്യാറാണോ?',
-    sub: 'നിങ്ങളുടെ വാട്സ്ആപ്പ് നമ്പറിൽ രജിസ്റ്റർ ചെയ്യുക, OTP സ്ഥിരീകരിക്കുക, രണ്ട് മിനിറ്റിനുള്ളിൽ അപേക്ഷ പൂർത്തിയാക്കുക.',
-    registerWhatsApp: 'വാട്സ്ആപ്പ് വഴി രജിസ്റ്റർ ചെയ്യുക',
+    sub: 'നിങ്ങളുടെ മൊബൈൽ നമ്പറിൽ രജിസ്റ്റർ ചെയ്യുക, OTP സ്ഥിരീകരിക്കുക, രണ്ട് മിനിറ്റിനുള്ളിൽ അപേക്ഷ പൂർത്തിയാക്കുക.',
+    registerNow: 'ഇപ്പോൾ രജിസ്റ്റർ ചെയ്യുക',
     alreadyMember: 'ഞാൻ ഇതിനകം അംഗമാണ്',
   },
   theme: {

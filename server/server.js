@@ -54,8 +54,8 @@ connectDB().then(() => {
     console.log(
       `[${config.CLUB.name}] Server running on http://localhost:${config.PORT}`
     );
-    if (!config.WHATSAPP.enabled) {
-      console.log('[DEV MODE] WhatsApp integration disabled – OTPs appear in logs.');
+    if (config.NODE_ENV !== 'production') {
+      console.log('[DEV MODE] SMS delivery disabled – OTPs appear in the logs.');
     }
   });
 });

@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { FaClock, FaCheckCircle, FaWhatsapp } from 'react-icons/fa';
+import { FaClock, FaCheckCircle, FaSms } from 'react-icons/fa';
 import { CLUB } from '../lib/club';
 
 export default function PendingApproval() {
@@ -56,8 +56,8 @@ export default function PendingApproval() {
           </div>
 
           <div className="mt-4 rounded-xl bg-emerald-900/5 p-3 text-xs text-slate-500">
-            <FaWhatsapp className="mr-1 inline-block text-emerald-600" />
-            You will also receive WhatsApp updates on the status of your application.
+            <FaSms className="mr-1 inline-block text-emerald-600" />
+            You will also receive SMS updates on the status of your application.
           </div>
 
           <div className="mt-8 flex flex-wrap justify-center gap-3">
