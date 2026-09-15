@@ -6,7 +6,10 @@ module.exports = {
   PORT: process.env.PORT || 5000,
   CLIENT_URL: process.env.CLIENT_URL || 'http://localhost:5173',
   // Comma-separated allowlist of frontend origins (dev + production Vercel).
-  CLIENT_URLS: (process.env.CLIENT_URLS || process.env.CLIENT_URL || 'http://localhost:5173')
+  // The Vercel deployment is included by default so CORS works without an
+  // extra server env variable. Override with CLIENT_URLS on Render if needed.
+  CLIENT_URLS: (process.env.CLIENT_URLS || process.env.CLIENT_URL ||
+    'http://localhost:5173,https://aiswarya-online1.vercel.app')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean),

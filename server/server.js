@@ -15,16 +15,25 @@ fs.mkdirSync(path.join(config.STORAGE_DIR, 'pdfs'), { recursive: true });
 fs.mkdirSync(path.join(config.STORAGE_DIR, 'qr'), { recursive: true });
 
 // CORS: allow the configured frontend origins (localhost for development plus
-// the production Vercel URL). Non-browser requests (curl, health checks) pass.
-app.use(
-  cors({
-    origin: (origin, cb) => {
-      if (!origin || config.CLIENT_URLS.includes(origin)) return cb(null, true);
-      return cb(null, false);
-    },
-    credentials: true,
-  })
-);
+// the production Vercel URL) with credentials, and answer OPTIONS preflight
+// requests so browsers can call the JSON API. Non-browser requests (curl,
+// health checks) have no Origin header and therefore pass.
+const corsOptions = {
+  origin: (origin, cb) => {
+    if (!origin || config.CLIENT_URLS.includes(origin)) return cb(null, true);
+    console.warn(`[CORS] Blocked origin: ${origin}`);
+    return cb(null, false);
+  },
+  credentials: true,
+  methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  maxAge: 86400,
+  preflightContinue: false,
+};
+app.use(cors(corsOptions));
+// Explicit OPTIONS handler for CORS preflight requests (browsers send these
+// before POST /api/auth/send-otp when cross-origin + JSON is used).
+app.options('*', cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

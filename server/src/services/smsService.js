@@ -32,19 +32,45 @@ async function sendOtpViaFast2Sms(phone, otp) {
     if (config.FAST2SMS.templateId) payload.template_id = config.FAST2SMS.templateId;
   }
 
-  const resp = await axios.post(endpoint, payload, {
-    headers: {
-      authorization: config.FAST2SMS.apiKey,
-      'Content-Type': 'application/json',
-      'Cache-Control': 'no-cache',
-    },
-    timeout: 15000,
-  });
+  let resp;
+  try {
+    resp = await axios.post(endpoint, payload, {
+      headers: {
+        authorization: config.FAST2SMS.apiKey,
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache',
+      },
+      timeout: 15000,
+    });
+  } catch (err) {
+    // axios throws for network errors and non-2xx HTTP statuses. Log the full
+    // response body (Fast2SMS sends useful "message" fields there).
+    const status = err.response ? `HTTP ${err.response.status}` : 'NETWORK';
+    const errText =
+      err.code || err.message || 'no error details supplied by the request layer';
+    if (err.response && err.response.data) {
+      console.error(
+        `[FAST2SMS-REQUEST-FAILED] ${status} for ${phone}: ${err.response.data.message || err.response.data.error || errText}`
+      );
+      console.error(`[FAST2SMS-RESPONSE] ${JSON.stringify(err.response.data)}`);
+    } else {
+      console.error(`[FAST2SMS-REQUEST-FAILED] ${status} for ${phone}: ${errText}`);
+    }
+    throw new Error(`Fast2SMS request failed (${status}): ${errText}`);
+  }
 
   const data = resp.data;
   if (!data || data.return === false) {
-    throw new Error(`Fast2SMS error: ${(data && data.message) || 'unexpected response'}`);
+    const msg =
+      (data && (data.message || data.error)) || 'unexpected response from Fast2SMS';
+    // Fast2SMS answers HTTP 200 even for business-level failures, so always log
+    // the returned payload to help diagnose quota/template/route problems.
+    console.error(`[FAST2SMS-API-FAILED] ${msg} for ${phone}`);
+    if (data) console.error(`[FAST2SMS-RESPONSE] ${JSON.stringify(data)}`);
+    throw new Error(`Fast2SMS API error: ${msg}`);
   }
+
+  console.log(`[FAST2SMS-OK] ${route} route sent to ${phone}: ${data.message || 'delivered'}`);
   return data;
 }
 
@@ -68,8 +94,12 @@ async function sendOtpMessage(toPhone, otp) {
     return { devOtp: null };
   } catch (err) {
     // Graceful fallback: keep the flow usable by logging the code so it can be
-    // recovered from Render logs when Fast2SMS is down or misconfigured.
-    console.error(`[FAST2SMS-FAILED] ${err && err.message ? err.message : err}. Logged OTP for ${toPhone}: ${otp}`);
+    // recovered from Render logs when Fast2SMS is down or misconfigured. Never
+    // return the OTP to the client in production.
+    console.error(
+      `[FAST2SMS-FAILED] ${err && err.message ? err.message : err}. Logged OTP for ${toPhone}: ${otp}`
+    );
+    if (err && err.stack) console.error(`[FAST2SMS-FAILED-STACK] ${err.stack}`);
     return { devOtp: null };
   }
 }
