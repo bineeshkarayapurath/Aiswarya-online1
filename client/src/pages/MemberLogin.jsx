@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import api from '../api/client';
@@ -10,13 +10,30 @@ import { FaUserLock, FaSms, FaArrowLeft, FaIdCardAlt } from 'react-icons/fa';
 
 export default function MemberLogin() {
   const navigate = useNavigate();
-  const { setAuth } = useAuth();
+  const { user, setAuth } = useAuth();
   const [step, setStep] = useState(0);
   const [identifier, setIdentifier] = useState('');
   const [isMemberId, setIsMemberId] = useState(false);
   const [otp, setOtp] = useState('');
   const [sending, setSending] = useState(false);
   const [logging, setLogging] = useState(false);
+
+  // Already logged in? Reflect the active session immediately instead of
+  // showing the login screen again.
+  if (user) {
+    return (
+      <Navigate
+        to={
+          user.role === 'SUPER_ADMIN'
+            ? '/authority/dashboard'
+            : user.status === 'APPROVED'
+              ? '/member/dashboard'
+              : '/pending'
+        }
+        replace
+      />
+    );
+  }
 
   const sendOtp = async () => {
     const id = isMemberId ? identifier.trim().toUpperCase() : normalizePhone(identifier);

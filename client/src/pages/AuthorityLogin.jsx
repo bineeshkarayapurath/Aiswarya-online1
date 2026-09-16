@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import api from '../api/client';
@@ -10,13 +10,18 @@ import { FaShieldAlt, FaLock, FaSms, FaArrowLeft } from 'react-icons/fa';
 
 export default function AuthorityLogin() {
   const navigate = useNavigate();
-  const { setAuth } = useAuth();
+  const { user, setAuth } = useAuth();
   const [step, setStep] = useState(0);
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [masterPin, setMasterPin] = useState('');
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
+
+  // Already authenticated as an executive officer? Go straight to the dashboard.
+  if (user) {
+    return <Navigate to="/authority/dashboard" replace />;
+  }
 
   const sendOtp = async () => {
     const p = normalizePhone(phone);
