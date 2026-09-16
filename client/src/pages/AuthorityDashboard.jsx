@@ -38,6 +38,7 @@ import ProgramApprovals from '../components/ProgramApprovals';
 import AssetsPanel from '../components/AssetsPanel';
 import { canAccessModule } from '../lib/permissions';
 import { moduleEnabled } from '../lib/club';
+import { uploadImages } from '../lib/uploadImages';
 import { useAuth } from '../context/AuthContext';
 import { FaCheckCircle, FaTimesCircle, FaEdit, FaFilePdf, FaIdCardAlt, FaTrashAlt, FaHourglass, FaPhoneAlt, FaEnvelope, FaMapMarkerAlt, FaFacebook, FaInstagram, FaWhatsapp, FaYoutube, FaSave } from 'react-icons/fa';
 
@@ -376,10 +377,174 @@ function formatMemberId(m) {
   return raw && tail ? `ID-${tail}` : 'N/A';
 }
 
+// Edit dialog for an approved member row: updates member details, photoUrl,
+// and the membership ID via PUT /admin/users/:id.
+function EditMemberModal({ member, onClose, onSaved }) {
+  const [form, setForm] = useState({
+    fullName: member?.fullName || '',
+    membershipId: member?.membershipId || '',
+    phoneNumber: member?.phoneNumber || '',
+    email: member?.email || '',
+    dob: member?.dob ? String(member.dob).slice(0, 10) : '',
+    address: member?.address || '',
+    occupation: member?.occupation || '',
+    education: member?.education || '',
+    photoUrl: member?.photoUrl || '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+
+  const handlePhoto = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const [url] = await uploadImages([file]);
+      if (url) {
+        setForm((f) => ({ ...f, photoUrl: url }));
+        toast.success('Photo uploaded');
+      } else {
+        toast.error('Photo upload failed');
+      }
+    } catch {
+      toast.error('Photo upload failed');
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await api.put(`/admin/users/${member._id}`, form);
+      toast.success('Member updated');
+      onSaved();
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Update failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-emerald-950/50 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.94 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.94 }}
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl"
+      >
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white p-5">
+          <h3 className="text-lg font-extrabold text-emerald-900">Edit Member</h3>
+          <button onClick={onClose} className="rounded-full px-2 py-1 text-slate-400 hover:bg-slate-100">
+            ✕
+          </button>
+        </div>
+
+        <div className="grid gap-3 p-5">
+          <div className="flex items-center gap-4 rounded-xl bg-slate-50 p-3">
+            <img
+              src={form.photoUrl || '/assets/club-logo.png'}
+              alt="member"
+              className="h-16 w-16 rounded-2xl border-2 border-emerald-900/20 object-cover"
+            />
+            <div className="flex-1">
+              <p className="text-sm font-bold text-slate-800">{form.fullName || member?.fullName}</p>
+              <p className="text-xs text-slate-500">{form.membershipId || member?.membershipId || 'No ID assigned'}</p>
+              <label className="mt-2 inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-emerald-900/10 px-3 py-1.5 text-xs font-bold text-emerald-900 hover:bg-emerald-900/20">
+                <ImagePlus className="h-3.5 w-3.5" />
+                {uploading ? 'Uploading...' : 'Upload photo'}
+                <input type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Full Name</label>
+            <input className="input" value={form.fullName} onChange={set('fullName')} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Membership ID</label>
+              <input className="input uppercase" value={form.membershipId} onChange={set('membershipId')} />
+            </div>
+            <div>
+              <label className="label">Phone</label>
+              <input className="input" value={form.phoneNumber} onChange={set('phoneNumber')} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Date of Birth</label>
+              <input type="date" className="input" value={form.dob} onChange={set('dob')} />
+            </div>
+            <div>
+              <label className="label">Email</label>
+              <input className="input" value={form.email} onChange={set('email')} />
+            </div>
+          </div>
+          <div>
+            <label className="label">Address</label>
+            <textarea className="input min-h-[60px]" value={form.address} onChange={set('address')} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Occupation / Status</label>
+              <select className="input" value={form.occupation} onChange={set('occupation')}>
+                <option value="">Select status</option>
+                <option>Student</option>
+                <option>Employed</option>
+                <option>Self-Employed / Business</option>
+                <option>Homemaker</option>
+                <option>Retired</option>
+                <option>Others</option>
+              </select>
+            </div>
+            <div>
+              <label className="label">Educational Qualification</label>
+              <select className="input" value={form.education} onChange={set('education')}>
+                <option value="">Select qualification</option>
+                <option>SSLC</option>
+                <option>Higher Secondary</option>
+                <option>Diploma</option>
+                <option>Graduate</option>
+                <option>Post Graduate</option>
+                <option>Others</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="label">Photo URL</label>
+            <input className="input" value={form.photoUrl} onChange={set('photoUrl')} />
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <button onClick={onClose} className="btn-outline flex-1 !py-2 text-sm">
+              Cancel
+            </button>
+            <button onClick={save} disabled={saving || uploading} className="btn-primary flex-1 !py-2 text-sm">
+              {saving ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 function ApprovedMembers() {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const [editing, setEditing] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -408,6 +573,23 @@ function ApprovedMembers() {
       toast.error(e.response?.data?.message || 'Failed to update role');
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  const deleteMember = async (member) => {
+    const ok = window.confirm(
+      'Are you sure you want to delete this member? This permanently removes their record and generated documents.'
+    );
+    if (!ok) return;
+    setDeletingId(member._id);
+    try {
+      const res = await api.delete(`/admin/users/${member._id}`);
+      toast.success(res.data.message || 'Member deleted');
+      await load();
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Failed to delete member');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -442,6 +624,7 @@ function ApprovedMembers() {
                 <th className="px-5 py-3 font-bold">Role</th>
                 <th className="px-5 py-3 font-bold">Status</th>
                 <th className="px-5 py-3 font-bold">Update Role</th>
+                <th className="px-5 py-3 font-bold">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -482,12 +665,44 @@ function ApprovedMembers() {
                       <option value="ADMIN">ADMIN</option>
                     </select>
                   </td>
+                  <td className="px-5 py-3">
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => setEditing(m)}
+                        className="flex items-center gap-1 rounded-lg bg-emerald-900/10 px-2.5 py-1.5 text-xs font-bold text-emerald-900 transition hover:bg-emerald-900/20"
+                        title="Edit member"
+                      >
+                        <FaEdit /> Edit
+                      </button>
+                      <button
+                        onClick={() => deleteMember(m)}
+                        disabled={deletingId === m._id}
+                        className="flex items-center gap-1 rounded-lg bg-red-50 px-2.5 py-1.5 text-xs font-bold text-red-600 transition hover:bg-red-100 disabled:opacity-50"
+                        title="Delete member"
+                      >
+                        <FaTrashAlt /> {deletingId === m._id ? 'Deleting...' : 'Delete'}
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+
+      <AnimatePresence>
+        {editing && (
+          <EditMemberModal
+            member={editing}
+            onClose={() => setEditing(null)}
+            onSaved={() => {
+              setEditing(null);
+              load();
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

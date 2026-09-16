@@ -24,6 +24,19 @@ async function nextMembershipId() {
   return id;
 }
 
+// Guarantee an approved member carries a sequential, strictly-unique membership
+// ID (e.g. AISC-001, AISC-002). Approved records that were created before ID
+// assignment (legacy / direct ADMIN accounts) are backfilled on read instead of
+// ever surfacing a blank placeholder or a raw MongoDB ObjectId.
+async function ensureMembershipId(user) {
+  if (!user) return '';
+  if (user.membershipId) return user.membershipId;
+  if (user.status !== config.STATUS.APPROVED) return '';
+  user.membershipId = await nextMembershipId();
+  await user.save();
+  return user.membershipId;
+}
+
 exports.listRequests = async (req, res) => {
   try {
     const status = req.query.status || 'PENDING_APPROVAL';
@@ -61,14 +74,16 @@ exports.listAll = async (req, res) => {
     const users = await User.find({
       role: { $in: [config.ROLES.MEMBER, config.ROLES.ADMIN] },
     }).sort({ createdAt: -1 });
-    const view = users.map((u) => {
+    const view = [];
+    for (const u of users) {
+      await ensureMembershipId(u);
       const obj = u.toObject();
       delete obj.lowerPhone;
       obj.photoUrl = obj.photoUrl ? publicUrl(obj.photoUrl) : '';
       if (obj.applicationPdfUrl) obj.applicationPdfUrl = publicUrl(obj.applicationPdfUrl);
       if (obj.idCardPdfUrl) obj.idCardPdfUrl = publicUrl(obj.idCardPdfUrl);
-      return obj;
-    });
+      view.push(obj);
+    }
     return res.json({ users: view });
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -321,6 +336,7 @@ exports.listExecutiveCommittee = async (req, res) => {
       status: config.STATUS.APPROVED,
       $or: [{ role: config.ROLES.MEMBER }, { designation: { $exists: true, $nin: ['', null] } }],
     }).sort({ designation: -1, membershipId: 1 });
+    for (const u of users) await ensureMembershipId(u);
     const members = users.filter((u) => u.membershipId).map(execMemberView);
     const summary = {
       total: members.length,
@@ -429,12 +445,77 @@ exports.getUserById = async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
+    await ensureMembershipId(user);
     const obj = user.toObject();
     delete obj.lowerPhone;
     if (obj.photoUrl) obj.photoUrl = publicUrl(obj.photoUrl);
     if (obj.applicationPdfUrl) obj.applicationPdfUrl = publicUrl(obj.applicationPdfUrl);
     if (obj.idCardPdfUrl) obj.idCardPdfUrl = publicUrl(obj.idCardPdfUrl);
     return res.json({ user: obj });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+// Update a registered member's details from the Approved Members table,
+// including photoUrl and membershipId. Membership IDs are kept strictly unique
+// (duplicate attempts are rejected); cleared IDs on approved accounts are
+// re-generated sequentially instead of leaving a gap.
+exports.updateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findById(id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (user.role === config.ROLES.SUPER_ADMIN) {
+      return res.status(403).json({ message: 'Cannot edit a SUPER_ADMIN account' });
+    }
+
+    const body = req.body || {};
+
+    if (body.membershipId !== undefined) {
+      const next = String(body.membershipId).trim().toUpperCase();
+      if (next) {
+        const clash = await User.findOne({ membershipId: next, _id: { $ne: user._id } });
+        if (clash) {
+          return res.status(400).json({ message: `Member ID ${next} is already assigned` });
+        }
+        user.membershipId = next;
+      } else if (user.status === config.STATUS.APPROVED) {
+        user.membershipId = await nextMembershipId();
+      } else {
+        user.membershipId = '';
+      }
+    }
+
+    if (body.fullName !== undefined) user.fullName = body.fullName;
+    if (body.dob) {
+      user.dob = new Date(body.dob);
+      user.age = Math.floor((Date.now() - user.dob.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+    }
+    if (body.phoneNumber !== undefined) {
+      const phone = String(body.phoneNumber).trim();
+      if (phone) {
+        const clash = await User.findOne({ phoneNumber: phone, _id: { $ne: user._id } });
+        if (clash) {
+          return res.status(400).json({ message: 'This phone number belongs to another member' });
+        }
+        user.phoneNumber = phone;
+      }
+    }
+    if (body.email !== undefined) user.email = body.email;
+    if (body.address !== undefined) user.address = body.address;
+    if (body.occupation !== undefined) user.occupation = body.occupation;
+    if (body.education !== undefined) user.education = body.education;
+    if (body.photoUrl !== undefined) user.photoUrl = body.photoUrl;
+
+    await user.save();
+
+    const obj = user.toObject();
+    delete obj.lowerPhone;
+    if (obj.photoUrl) obj.photoUrl = publicUrl(obj.photoUrl);
+    if (obj.applicationPdfUrl) obj.applicationPdfUrl = publicUrl(obj.applicationPdfUrl);
+    if (obj.idCardPdfUrl) obj.idCardPdfUrl = publicUrl(obj.idCardPdfUrl);
+    return res.json({ message: 'Member updated', user: obj });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }

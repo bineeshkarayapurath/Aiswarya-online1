@@ -113,6 +113,13 @@ router.delete(
   requireDesignations(EXEC_OFFICERS),
   admin.deleteUser
 );
+router.put(
+  '/admin/users/:id',
+  requireAuth,
+  requireSuperAdmin,
+  requireDesignations(EXEC_OFFICERS),
+  admin.updateUser
+);
 router.post(
   '/admin/dev/clear-members',
   requireAuth,
