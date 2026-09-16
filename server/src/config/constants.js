@@ -1,18 +1,27 @@
 require('dotenv').config();
 const path = require('path');
 
+// Comma-separated allowlist of frontend origins (dev + production Vercel).
+// These are ALWAYS allowed; CLIENT_URLS/CLIENT_URL on the server (Render) can
+// only ADD to the list, never remove the known deployments.
+const DEFAULT_CLIENT_URLS = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'https://aiswarya-online1.vercel.app',
+];
+
+const envOrigins = [process.env.CLIENT_URLS, process.env.CLIENT_URL]
+  .filter(Boolean)
+  .join(',')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 module.exports = {
   NODE_ENV: process.env.NODE_ENV || 'development',
   PORT: process.env.PORT || 5000,
   CLIENT_URL: process.env.CLIENT_URL || 'http://localhost:5173',
-  // Comma-separated allowlist of frontend origins (dev + production Vercel).
-  // The Vercel deployment is included by default so CORS works without an
-  // extra server env variable. Override with CLIENT_URLS on Render if needed.
-  CLIENT_URLS: (process.env.CLIENT_URLS || process.env.CLIENT_URL ||
-    'http://localhost:5173,https://aiswarya-online1.vercel.app')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean),
+  CLIENT_URLS: Array.from(new Set([...DEFAULT_CLIENT_URLS, ...envOrigins])),
   // Public base URL of this API (e.g. https://your-api.onrender.com). When set,
   // stored /uploads/... paths are returned to the client as fully-qualified URLs
   // so photos and PDFs load from the backend's separate production domain.

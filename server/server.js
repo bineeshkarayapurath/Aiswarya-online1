@@ -18,9 +18,25 @@ fs.mkdirSync(path.join(config.STORAGE_DIR, 'qr'), { recursive: true });
 // the production Vercel URL) with credentials, and answer OPTIONS preflight
 // requests so browsers can call the JSON API. Non-browser requests (curl,
 // health checks) have no Origin header and therefore pass.
+const ALLOWED_ORIGIN_SUFFIXES = ['.vercel.app', '.onrender.com'];
+
+function isOriginAllowed(origin) {
+  if (config.CLIENT_URLS.includes(origin)) return true;
+  try {
+    const host = new URL(origin).hostname.toLowerCase();
+    return (
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      ALLOWED_ORIGIN_SUFFIXES.some((suffix) => host.endsWith(suffix))
+    );
+  } catch (e) {
+    return false;
+  }
+}
+
 const corsOptions = {
   origin: (origin, cb) => {
-    if (!origin || config.CLIENT_URLS.includes(origin)) return cb(null, true);
+    if (!origin || isOriginAllowed(origin)) return cb(null, true);
     console.warn(`[CORS] Blocked origin: ${origin}`);
     return cb(null, false);
   },
@@ -63,6 +79,7 @@ connectDB().then(() => {
     console.log(
       `[${config.CLUB.name}] Server running on http://localhost:${config.PORT}`
     );
+    console.log(`[CORS] Allowed origins: ${config.CLIENT_URLS.join(', ')}`);
     if (config.NODE_ENV !== 'production') {
       console.log('[DEV MODE] SMS delivery disabled – OTPs appear in the logs.');
     }
