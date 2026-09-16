@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { CLUB } from '../lib/club';
 import { FaPrint, FaTimes } from 'react-icons/fa';
 import clubConfig from '../config/clubConfig';
+import { resolveMedia } from '../api/client';
 
 const ROWS = (user) => [
   ['Membership ID', user.membershipId || 'Pending'],
@@ -58,7 +59,7 @@ export default function ApplicationPDF({ user, onClose }) {
               <p className="mt-1 text-sm font-bold text-gold">Reg No: {CLUB.regNo}</p>
             </div>
             {user.photoUrl && (
-              <img src={user.photoUrl} alt="photo" className="h-20 w-16 rounded border border-slate-300 object-cover" />
+              <img src={resolveMedia(user.photoUrl)} alt="photo" className="h-20 w-16 rounded border border-slate-300 object-cover" />
             )}
           </div>
 

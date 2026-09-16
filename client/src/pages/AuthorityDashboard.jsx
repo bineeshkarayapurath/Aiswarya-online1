@@ -391,8 +391,10 @@ function ApprovedMembers() {
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                 <th className="px-5 py-3 font-bold">S.No</th>
+                <th className="px-5 py-3 font-bold">Photo</th>
                 <th className="px-5 py-3 font-bold">Member ID</th>
                 <th className="px-5 py-3 font-bold">Full Name</th>
+                <th className="px-5 py-3 font-bold">Phone</th>
                 <th className="px-5 py-3 font-bold">Designation</th>
                 <th className="px-5 py-3 font-bold">Role</th>
                 <th className="px-5 py-3 font-bold">Status</th>
@@ -404,11 +406,21 @@ function ApprovedMembers() {
                 <tr key={m._id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
                   <td className="px-5 py-3 text-slate-500">{i + 1}</td>
                   <td className="px-5 py-3">
+                    <img
+                      src={m.photoUrl || '/assets/club-logo.png'}
+                      alt="member"
+                      className="h-10 w-10 rounded-xl border border-slate-200 object-cover"
+                    />
+                  </td>
+                  <td className="px-5 py-3">
                     <span className="rounded-full bg-gold/15 px-3 py-1 text-xs font-extrabold text-gold">
                       {m.membershipId || '—'}
                     </span>
                   </td>
                   <td className="px-5 py-3 font-semibold text-slate-700">{m.fullName}</td>
+                  <td className="px-5 py-3 text-slate-500">
+                    {m.phoneNumber ? `+91 ${m.phoneNumber}` : '—'}
+                  </td>
                   <td className="px-5 py-3 text-slate-500">{m.designation || 'General Member'}</td>
                   <td className="px-5 py-3">
                     <span
@@ -960,41 +972,6 @@ function ApprovalsPanel() {
                       <FaPhoneAlt className="mr-1 inline" /> Verify & Approve
                     </button>
 ))}
-              {!request.phoneVerified && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-                  <p className="text-xs font-extrabold uppercase tracking-wide text-amber-700">
-                    Manual Verification
-                  </p>
-                  <p className="mt-1 text-xs leading-relaxed text-amber-700/80">
-                    This applicant didn&apos;t complete the OTP verification. Verify their phone in
-                    person or over a call, then enable manual verification to approve.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setManualVerify((m) => !m)}
-                    className="mt-3 flex items-center gap-2"
-                  >
-                    <span
-                      className={`relative inline-block h-6 w-11 rounded-full transition ${
-                        manualVerify ? 'bg-emerald-600' : 'bg-slate-300'
-                      }`}
-                    >
-                      <span
-                        className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
-                          manualVerify ? 'left-[22px]' : 'left-0.5'
-                        }`}
-                      />
-                    </span>
-                    <span
-                      className={`text-xs font-bold ${
-                        manualVerify ? 'text-emerald-800' : 'text-slate-500'
-                      }`}
-                    >
-                      {manualVerify ? 'Manual verification ENABLED' : 'Manual verification OFF'}
-                    </span>
-                  </button>
-                </div>
-              )}
                 <button
                   onClick={() => removeMember(r)}
                   title="Delete Member"

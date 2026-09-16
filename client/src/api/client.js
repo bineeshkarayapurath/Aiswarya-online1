@@ -21,6 +21,9 @@ export function resolveMedia(src) {
   const s = String(src).replace(/\\/g, '/');
   if (/^(https?:)?\/\//i.test(s) || s.startsWith('data:') || s.startsWith('blob:')) return s;
   if (API_ORIGIN && s.startsWith(API_ORIGIN)) return s;
+  // Frontend-owned static assets (e.g. /assets/club-logo.png) must stay on the
+  // client origin and are never backend uploads.
+  if (s.startsWith('/assets/')) return s;
   return (API_ORIGIN || '') + (s.startsWith('/') ? s : `/uploads/${s.replace(/^\/+/g, '')}`);
 }
 

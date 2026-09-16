@@ -53,12 +53,23 @@ exports.listRequests = async (req, res) => {
   }
 };
 
+// Approved members list. Photo URLs are normalised to fully-qualified public
+// URLs so the Approved Members table in the Authority Dashboard renders photos
+// regardless of how they were stored (relative /uploads/... vs CDN).
 exports.listAll = async (req, res) => {
   try {
     const users = await User.find({
       role: { $in: [config.ROLES.MEMBER, config.ROLES.ADMIN] },
     }).sort({ createdAt: -1 });
-    return res.json({ users });
+    const view = users.map((u) => {
+      const obj = u.toObject();
+      delete obj.lowerPhone;
+      obj.photoUrl = obj.photoUrl ? publicUrl(obj.photoUrl) : '';
+      if (obj.applicationPdfUrl) obj.applicationPdfUrl = publicUrl(obj.applicationPdfUrl);
+      if (obj.idCardPdfUrl) obj.idCardPdfUrl = publicUrl(obj.idCardPdfUrl);
+      return obj;
+    });
+    return res.json({ users: view });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
@@ -418,7 +429,12 @@ exports.getUserById = async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
-    return res.json({ user });
+    const obj = user.toObject();
+    delete obj.lowerPhone;
+    if (obj.photoUrl) obj.photoUrl = publicUrl(obj.photoUrl);
+    if (obj.applicationPdfUrl) obj.applicationPdfUrl = publicUrl(obj.applicationPdfUrl);
+    if (obj.idCardPdfUrl) obj.idCardPdfUrl = publicUrl(obj.idCardPdfUrl);
+    return res.json({ user: obj });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }

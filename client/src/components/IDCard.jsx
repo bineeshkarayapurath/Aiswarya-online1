@@ -4,6 +4,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { CLUB } from '../lib/club';
 import clubConfig from '../config/clubConfig';
 import { FaIdCard } from 'react-icons/fa';
+import { resolveMedia } from '../api/client';
 
 const RULES = [
   '1. Present this card upon entry to the library.',
@@ -92,7 +93,7 @@ function FrontFace({ user, qrValue }) {
         {/* Member photo (no background watermark) */}
         <div className="shrink-0 self-center rounded-lg border-[2.5px] border-gold bg-white p-0.5 shadow-md">
           <img
-            src={user.photoUrl || CLUB.logo}
+            src={user.photoUrl ? resolveMedia(user.photoUrl) : CLUB.logo}
             alt="Member"
             className="h-[112px] w-[84px] rounded-md object-cover"
           />
