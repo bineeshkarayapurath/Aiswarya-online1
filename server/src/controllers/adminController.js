@@ -38,7 +38,9 @@ exports.listRequests = async (req, res) => {
 
 exports.listAll = async (req, res) => {
   try {
-    const users = await User.find({ role: config.ROLES.MEMBER }).sort({ createdAt: -1 });
+    const users = await User.find({
+      role: { $in: [config.ROLES.MEMBER, config.ROLES.ADMIN] },
+    }).sort({ createdAt: -1 });
     return res.json({ users });
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -358,6 +360,41 @@ exports.setDesignation = async (req, res) => {
   }
 };
 
+// Assign / update a user's top-level role (MEMBER / ADMIN). Only an admin
+// may perform this action.  Setting role to ADMIN grants the same
+// privileges as SUPER_ADMIN (full dashboard access, approvals, designation
+// management).
+exports.setRole = async (req, res) => {
+  try {
+    const { userId, role } = req.body;
+    if (!userId || !role) {
+      return res.status(400).json({ message: 'userId and role are required' });
+    }
+    const validRoles = [config.ROLES.MEMBER, config.ROLES.ADMIN];
+    if (!validRoles.includes(role)) {
+      return res
+        .status(400)
+        .json({ message: `Invalid role. Allowed: ${validRoles.join(', ')}` });
+    }
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (user.role === config.ROLES.SUPER_ADMIN) {
+      return res.status(403).json({ message: 'Cannot modify a SUPER_ADMIN role' });
+    }
+    if (user.status !== config.STATUS.APPROVED) {
+      return res.status(400).json({ message: 'Only approved members can be assigned a role' });
+    }
+    user.role = role;
+    await user.save();
+    return res.json({
+      message: `${user.fullName} is now ${role}`,
+      user: { _id: user._id, role: user.role, designation: user.designation || '', status: user.status },
+    });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
 exports.getUserById = async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
@@ -388,7 +425,7 @@ exports.deleteUser = async (req, res) => {
     const { id } = req.params;
     const user = await User.findById(id);
     if (!user) return res.status(404).json({ message: 'User not found' });
-    if (user.role === config.ROLES.SUPER_ADMIN) {
+    if (user.role === config.ROLES.SUPER_ADMIN || user.role === config.ROLES.ADMIN) {
       return res.status(403).json({ message: 'Cannot delete an authority account' });
     }
 

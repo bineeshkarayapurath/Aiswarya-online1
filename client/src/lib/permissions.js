@@ -42,13 +42,15 @@ export const MODULE_PERMISSIONS = {
 };
 
 // An authority account without a designation keeps full access (legacy
-// default) so existing administrators are never locked out.
-export function canAccessModule(key, designation) {
+// default) so existing administrators are never locked out. ADMIN-role
+// accounts (Executive Committee admins) always have full module access.
+export function canAccessModule(key, designation, role) {
+  if (role === 'ADMIN' || role === 'SUPER_ADMIN') return true;
   if (!designation) return true;
   const allowed = MODULE_PERMISSIONS[key];
   return Array.isArray(allowed) && allowed.includes(designation);
 }
 
-export function canManageModule(key, designation) {
-  return canAccessModule(key, designation);
+export function canManageModule(key, designation, role) {
+  return canAccessModule(key, designation, role);
 }

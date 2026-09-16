@@ -27,7 +27,7 @@ async function requireAuth(req, res, next) {
 }
 
 function requireSuperAdmin(req, res, next) {
-  if (!req.user || req.user.role !== config.ROLES.SUPER_ADMIN) {
+  if (!req.user || (req.user.role !== config.ROLES.SUPER_ADMIN && req.user.role !== config.ROLES.ADMIN)) {
     return res.status(403).json({ message: 'Access denied' });
   }
   next();

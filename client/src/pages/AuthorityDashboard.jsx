@@ -169,9 +169,12 @@ export default function AuthorityDashboard() {
   const { user } = useAuth();
 
   // Role-based module access: an administrator only sees tiles their
-  // designation may open (no designation = full access). Feature toggles
-  // (clubConfig.features) additionally hide disabled modules.
-  const accessibleModules = MODULES.filter((m) => moduleEnabled(m.key) && canAccessModule(m.key, user?.designation));
+  // designation may open (no designation = full access). ADMIN role accounts
+  // always get full access. Feature toggles (clubConfig.features) additionally
+  // hide disabled modules.
+  const accessibleModules = MODULES.filter(
+    (m) => moduleEnabled(m.key) && canAccessModule(m.key, user?.designation, user?.role)
+  );;
 
   const open = (key) => setActive({ key, data: MODULES.find((m) => m.key === key) });
 
@@ -333,47 +336,106 @@ function PlaceholderPanel({ module }) {
 function ApprovedMembers() {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/admin/users');
+      setMembers(res.data.users || []);
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Failed to load members');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    api
-      .get('/admin/users')
-      .then((res) => setMembers(res.data.users || []))
-      .catch((e) => toast.error(e.response?.data?.message || 'Failed to load members'))
-      .finally(() => setLoading(false));
-  }, []);
+    load();
+  }, [load]);
+
+  const setRole = async (member, role) => {
+    if (!role) return;
+    setUpdatingId(member._id);
+    try {
+      const res = await api.post('/admin/set-role', { userId: member._id, role });
+      toast.success(res.data.message || 'Role updated');
+      await load();
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Failed to update role');
+    } finally {
+      setUpdatingId(null);
+    }
+  };
 
   if (loading) return <Spinner label="Loading members..." />;
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-3">
+        <p className="flex items-center gap-2 text-sm font-extrabold text-emerald-900">
+          <ShieldCheck className="text-gold" /> Registered Members &amp; Role Management
+        </p>
+        <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+          {members.length} member{members.length === 1 ? '' : 's'}
+        </span>
+      </div>
       {members.length === 0 ? (
         <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
           <Users className="h-10 w-10 text-slate-300" />
           <p className="font-semibold text-slate-500">No approved members yet</p>
         </div>
       ) : (
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-              <th className="px-5 py-3 font-bold">S.No</th>
-              <th className="px-5 py-3 font-bold">Member ID</th>
-              <th className="px-5 py-3 font-bold">Full Name</th>
-            </tr>
-          </thead>
-          <tbody>
-            {members.map((m, i) => (
-              <tr key={m._id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
-                <td className="px-5 py-3 text-slate-500">{i + 1}</td>
-                <td className="px-5 py-3">
-                  <span className="rounded-full bg-gold/15 px-3 py-1 text-xs font-extrabold text-gold">
-                    {m.membershipId || '—'}
-                  </span>
-                </td>
-                <td className="px-5 py-3 font-semibold text-slate-700">{m.fullName}</td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                <th className="px-5 py-3 font-bold">S.No</th>
+                <th className="px-5 py-3 font-bold">Member ID</th>
+                <th className="px-5 py-3 font-bold">Full Name</th>
+                <th className="px-5 py-3 font-bold">Designation</th>
+                <th className="px-5 py-3 font-bold">Role</th>
+                <th className="px-5 py-3 font-bold">Status</th>
+                <th className="px-5 py-3 font-bold">Update Role</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {members.map((m, i) => (
+                <tr key={m._id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
+                  <td className="px-5 py-3 text-slate-500">{i + 1}</td>
+                  <td className="px-5 py-3">
+                    <span className="rounded-full bg-gold/15 px-3 py-1 text-xs font-extrabold text-gold">
+                      {m.membershipId || '—'}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3 font-semibold text-slate-700">{m.fullName}</td>
+                  <td className="px-5 py-3 text-slate-500">{m.designation || 'General Member'}</td>
+                  <td className="px-5 py-3">
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 text-[11px] font-extrabold uppercase tracking-wide ${
+                        m.role === 'ADMIN' ? 'bg-emerald-900 text-white' : 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      {m.role || 'MEMBER'}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3"><StatusBadge status={m.status} /></td>
+                  <td className="px-5 py-3">
+                    <select
+                      className="input !w-auto !py-1.5 !text-xs"
+                      value={m.role === 'ADMIN' ? 'ADMIN' : 'MEMBER'}
+                      disabled={updatingId === m._id}
+                      onChange={(e) => setRole(m, e.target.value)}
+                    >
+                      <option value="MEMBER">MEMBER</option>
+                      <option value="ADMIN">ADMIN</option>
+                    </select>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

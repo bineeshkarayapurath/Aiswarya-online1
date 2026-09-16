@@ -99,6 +99,13 @@ router.get(
   requireDesignations(EXEC_OFFICERS),
   admin.getUserById
 );
+router.post(
+  '/admin/set-role',
+  requireAuth,
+  requireSuperAdmin,
+  requireDesignations(EXEC_OFFICERS),
+  admin.setRole
+);
 router.delete(
   '/admin/users/:id',
   requireAuth,
@@ -121,10 +128,10 @@ router.put(
   settings.updateSettings
 );
 
-// Executive Committee (main) — designation management (President/Secretary)
-router.get('/admin/committee/executive', requireAuth, requireSuperAdmin, requireDesignations(GUILD_LEADS), admin.listExecutiveCommittee);
-router.get('/admin/committee/search', requireAuth, requireSuperAdmin, requireDesignations(GUILD_LEADS), admin.searchCommitteeMembers);
-router.post('/admin/committee/designation', requireAuth, requireSuperAdmin, requireDesignations(GUILD_LEADS), admin.setDesignation);
+// Executive Committee (main) — designation management (executive officers)
+router.get('/admin/committee/executive', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), admin.listExecutiveCommittee);
+router.get('/admin/committee/search', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), admin.searchCommitteeMembers);
+router.post('/admin/committee/designation', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), admin.setDesignation);
 
 // Sub-committee management & program registers (executive roles)
 router.get('/admin/committee/members', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), admin.listCommitteeMembers);

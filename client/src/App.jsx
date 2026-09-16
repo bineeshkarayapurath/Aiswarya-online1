@@ -24,7 +24,7 @@ function MemberOnly({ children }) {
 
 function AdminOnly({ children }) {
   const { user } = useAuth();
-  if (!user || user.role !== 'SUPER_ADMIN') {
+  if (!user || (user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN')) {
     return <Navigate to="/authority-zone" replace />;
   }
   return children;
@@ -71,6 +71,16 @@ export default function App() {
           <Route path="/authority-zone" element={<AuthorityLogin />} />
           <Route
             path="/authority/dashboard"
+            element={
+              <AdminOnly>
+                <AuthorityDashboard />
+              </AdminOnly>
+            }
+          />
+          {/* Admin Management Panel – same authority dashboard, accessible to
+              ADMIN-role accounts (Executive Committee admins). */}
+          <Route
+            path="/admin/dashboard"
             element={
               <AdminOnly>
                 <AuthorityDashboard />

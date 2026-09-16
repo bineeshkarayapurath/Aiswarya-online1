@@ -20,7 +20,7 @@ export default function AuthorityLogin() {
 
   // Already authenticated as an executive officer? Go straight to the dashboard.
   if (user) {
-    return <Navigate to="/authority/dashboard" replace />;
+    return <Navigate to="/admin/dashboard" replace />;
   }
 
   const sendOtp = async () => {
@@ -54,7 +54,7 @@ export default function AuthorityLogin() {
       });
       setAuth(res.data.token, res.data.user);
       toast.success('Authority verified');
-      navigate('/authority/dashboard');
+      navigate('/admin/dashboard');
     } catch (e) {
       toast.error(e.response?.data?.message || 'Verification failed');
     } finally {

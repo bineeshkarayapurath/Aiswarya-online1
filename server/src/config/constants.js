@@ -134,6 +134,7 @@ module.exports = {
   },
   ROLES: {
     MEMBER: 'MEMBER',
+    ADMIN: 'ADMIN',
     SUPER_ADMIN: 'SUPER_ADMIN',
   },
   STATUS: {

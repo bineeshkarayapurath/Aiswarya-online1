@@ -268,13 +268,14 @@ exports.adminLoginVerify = async (req, res) => {
         phoneNumber: canonical,
         dob: new Date('1990-01-01'),
         address: 'Club Office',
-        role: config.ROLES.SUPER_ADMIN,
+        role: config.ROLES.ADMIN,
+        designation: 'Executive Committee Member',
         status: config.STATUS.APPROVED,
         registrationNo: config.CLUB.regNo,
       });
       await user.save();
-    } else if (user.role !== config.ROLES.SUPER_ADMIN) {
-      user.role = config.ROLES.SUPER_ADMIN;
+    } else if (user.role !== config.ROLES.ADMIN && user.role !== config.ROLES.SUPER_ADMIN) {
+      user.role = config.ROLES.ADMIN;
       user.status = config.STATUS.APPROVED;
       await user.save();
     }

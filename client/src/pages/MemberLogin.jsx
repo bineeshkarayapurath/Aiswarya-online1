@@ -24,8 +24,8 @@ export default function MemberLogin() {
     return (
       <Navigate
         to={
-          user.role === 'SUPER_ADMIN'
-            ? '/authority/dashboard'
+          user.role === 'ADMIN' || user.role === 'SUPER_ADMIN'
+            ? '/admin/dashboard'
             : user.status === 'APPROVED'
               ? '/member/dashboard'
               : '/pending'
@@ -65,7 +65,9 @@ export default function MemberLogin() {
       setAuth(res.data.token, res.data.user);
       toast.success(`Welcome back, ${res.data.user.fullName}!`);
       navigate(
-        res.data.user.role === 'SUPER_ADMIN' ? '/authority/dashboard' : '/member/dashboard'
+        res.data.user.role === 'ADMIN' || res.data.user.role === 'SUPER_ADMIN'
+          ? '/admin/dashboard'
+          : '/member/dashboard'
       );
     } catch (e) {
       const msg = e.response?.data?.message;
