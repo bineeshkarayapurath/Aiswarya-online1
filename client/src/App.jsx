@@ -16,7 +16,10 @@ import { useAuth } from './context/AuthContext';
 
 function MemberOnly({ children }) {
   const { user } = useAuth();
-  if (!user || user.role !== 'MEMBER' || user.status !== 'APPROVED') {
+  // Every approved account (MEMBER, and ADMIN / SUPER_ADMIN authority accounts
+  // who are also club members) can view their own member dashboard via
+  // /member/dashboard ("My Profile" in the navbar).
+  if (!user || user.status !== 'APPROVED') {
     return <Navigate to="/member-login" replace />;
   }
   return children;

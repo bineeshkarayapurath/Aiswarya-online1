@@ -33,8 +33,11 @@ function requireSuperAdmin(req, res, next) {
   next();
 }
 
+// Member-zone access. Any APPROVED account is a club member (MEMBER role, or
+// an ADMIN / SUPER_ADMIN authority account that was promoted from a member
+// record), so the member profile / documents remain reachable for all of them.
 function requireMember(req, res, next) {
-  if (!req.user || req.user.role !== config.ROLES.MEMBER) {
+  if (!req.user || req.user.status !== config.STATUS.APPROVED) {
     return res.status(403).json({ message: 'Members only' });
   }
   next();

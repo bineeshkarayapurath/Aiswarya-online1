@@ -38,17 +38,6 @@ function Avatar({ user, name, className = '' }) {
   );
 }
 
-// Resolve the "My Profile" destination from the logged-in user's role.
-// Authority role accounts (ADMIN / SUPER_ADMIN) land on the Authority
-// Dashboard; regular members (MEMBER, including members who hold a
-// sub-committee or executive designation but have a MEMBER role) land on the
-// Member Dashboard. Routes mirror the guards in App.jsx.
-function resolveProfileRoute(user) {
-  const role = String(user?.role || '').toUpperCase();
-  if (role === 'ADMIN' || role === 'SUPER_ADMIN') return '/admin/dashboard';
-  return '/member/dashboard';
-}
-
 export default function Navbar() {
   const { user, logout } = useAuth();
   const { lang, setLang, t } = useLocale();
@@ -58,9 +47,13 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
 
+  // "My Profile" is the personal member dashboard for every logged-in account
+  // (including ADMIN / SUPER_ADMIN authority accounts, who are also members).
+  // The separate "Admin Panel" item below routes authority roles to the
+  // Authority Dashboard.
   const goToProfile = () => {
     setMenuOpen(false);
-    navigate(resolveProfileRoute(user));
+    navigate('/member/dashboard');
   };
 
   useEffect(() => {
