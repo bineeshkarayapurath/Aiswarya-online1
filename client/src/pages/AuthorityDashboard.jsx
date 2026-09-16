@@ -333,6 +333,49 @@ function PlaceholderPanel({ module }) {
 /* ------------------------------------------------------------------ *
  *  Module: Approved Members List
  * ------------------------------------------------------------------ */
+// Initials badge rendered when a member has no photo (or it fails to load).
+function InitialsBadge({ name, className = '' }) {
+  const initials = (n) =>
+    !n ? '?' : n.trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
+  return (
+    <span
+      className={`flex items-center justify-center rounded-xl bg-emerald-900 font-extrabold text-gold-300 shadow-sm ${className}`}
+      title={name || 'Member'}
+    >
+      {initials(name)}
+    </span>
+  );
+}
+
+// Photo cell: renders the member photo when available, otherwise (or on load
+// failure) a neat initials avatar — never a broken <img>.
+function MemberAvatar({ member }) {
+  const [broken, setBroken] = useState(false);
+  const photo = member?.photoUrl;
+  useEffect(() => setBroken(false), [photo]);
+
+  if (photo && !broken) {
+    return (
+      <img
+        src={photo}
+        alt={member?.fullName || 'member'}
+        onError={() => setBroken(true)}
+        className="h-10 w-10 rounded-xl border border-slate-200 object-cover"
+      />
+    );
+  }
+  return <InitialsBadge name={member?.fullName} className="h-10 w-10 text-xs" />;
+}
+
+// Membership ID display: prefer the assigned member ID; fall back to a short
+// code derived from the record id so the cell never renders a blank dash.
+function formatMemberId(m) {
+  if (m?.membershipId) return m.membershipId;
+  const raw = String(m?.id || m?._id || '').trim();
+  const tail = raw.replace(/[^A-Za-z0-9]/g, '').slice(-6).toUpperCase();
+  return raw && tail ? `ID-${tail}` : 'N/A';
+}
+
 function ApprovedMembers() {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -406,15 +449,11 @@ function ApprovedMembers() {
                 <tr key={m._id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
                   <td className="px-5 py-3 text-slate-500">{i + 1}</td>
                   <td className="px-5 py-3">
-                    <img
-                      src={m.photoUrl || '/assets/club-logo.png'}
-                      alt="member"
-                      className="h-10 w-10 rounded-xl border border-slate-200 object-cover"
-                    />
+                    <MemberAvatar member={m} />
                   </td>
                   <td className="px-5 py-3">
                     <span className="rounded-full bg-gold/15 px-3 py-1 text-xs font-extrabold text-gold">
-                      {m.membershipId || '—'}
+                      {formatMemberId(m)}
                     </span>
                   </td>
                   <td className="px-5 py-3 font-semibold text-slate-700">{m.fullName}</td>
