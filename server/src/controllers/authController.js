@@ -67,7 +67,13 @@ exports.sendOtp = async (req, res) => {
     const raw = String(req.body.phoneNumber || req.body.identifier || '').trim();
     // Canonicalise so "+91 99999 99999" / "919999999999" become "9999999999" —
     // the OTP is stored and delivered against this clean 10-digit value.
-    const phone = canonicalPhone(raw);
+    let phone = canonicalPhone(raw);
+    // If the input is a membership ID (e.g. AISC-001 / AISC-2026-0001), resolve
+    // it to the member's registered phone so the OTP reaches a working inbox.
+    if (phone.length !== 10 && /^[A-Za-z0-9]+-\d+(-\d+)?$/.test(raw)) {
+      const member = await User.findOne({ membershipId: raw.trim().toUpperCase() });
+      if (member && member.phoneNumber) phone = canonicalPhone(member.phoneNumber);
+    }
     if (!phone || phone.length !== 10) {
       return res
         .status(400)
@@ -193,14 +199,21 @@ exports.memberLogin = async (req, res) => {
       return res.status(400).json({ message: 'identifier and code are required' });
     }
     const input = String(identifier).trim();
-    await verifyOtp(input, String(code).trim());
+    const isMembershipId = /^[A-Za-z0-9]+-\d+(-\d+)?$/.test(input);
 
     let user;
-    if (/^[A-Za-z0-9]+-[0-9]{4}-[0-9]+$/.test(input)) {
-      user = await User.findOne({ membershipId: input });
+    if (isMembershipId) {
+      user = await User.findOne({ membershipId: input.toUpperCase() });
     } else {
       user = await User.findOne({ phoneNumber: input });
     }
+
+    // OTPs are issued against the member's 10-digit phone (membership-ID logins
+    // are resolved to the owner's phone in sendOtp), so verify against that.
+    const otpIdentifier = isMembershipId
+      ? (user ? user.phoneNumber : input)
+      : canonicalPhone(input);
+    await verifyOtp(otpIdentifier, String(code).trim());
 
     if (!user || user.status !== config.STATUS.APPROVED) {
       return res.status(403).json({ message: 'Access denied. Account not approved or not found.' });

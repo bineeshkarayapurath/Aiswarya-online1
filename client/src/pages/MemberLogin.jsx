@@ -131,7 +131,7 @@ export default function MemberLogin() {
                   )}
                   <input
                     className="input"
-                    placeholder={isMemberId ? 'e.g. ALC-2026-0001' : '98765 43210'}
+                    placeholder={isMemberId ? 'e.g. AISC-001' : '98765 43210'}
                     inputMode={isMemberId ? 'text' : 'numeric'}
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}

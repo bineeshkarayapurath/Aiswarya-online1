@@ -567,7 +567,7 @@ function CommitteePanel({ committeeName }) {
 
   const assign = async () => {
     if (!idInput.trim()) {
-      toast.error('Enter a Member ID, e.g. ALC-2026-0001');
+      toast.error('Enter a Member ID, e.g. AISC-001');
       return;
     }
     setAssigning(true);
@@ -618,7 +618,7 @@ function CommitteePanel({ committeeName }) {
             <label className="label">Member ID</label>
             <input
               className="input"
-              placeholder="ALC-2026-0001"
+              placeholder="AISC-001"
               value={idInput}
               onChange={(e) => setIdInput(e.target.value)}
             />
