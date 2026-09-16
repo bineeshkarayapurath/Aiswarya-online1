@@ -612,39 +612,39 @@ function ApprovedMembers() {
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <table className="w-full min-w-[1150px] text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                <th className="px-5 py-3 font-bold">S.No</th>
-                <th className="px-5 py-3 font-bold">Photo</th>
-                <th className="px-5 py-3 font-bold">Member ID</th>
-                <th className="px-5 py-3 font-bold">Full Name</th>
-                <th className="px-5 py-3 font-bold">Phone</th>
-                <th className="px-5 py-3 font-bold">Designation</th>
-                <th className="px-5 py-3 font-bold">Role</th>
-                <th className="px-5 py-3 font-bold">Status</th>
-                <th className="px-5 py-3 font-bold">Update Role</th>
-                <th className="px-5 py-3 font-bold">Actions</th>
+                <th className="whitespace-nowrap px-5 py-3 font-bold">S.No</th>
+                <th className="whitespace-nowrap px-5 py-3 font-bold">Photo</th>
+                <th className="whitespace-nowrap px-5 py-3 font-bold">Member ID</th>
+                <th className="whitespace-nowrap px-5 py-3 font-bold">Full Name</th>
+                <th className="whitespace-nowrap px-5 py-3 font-bold">Phone</th>
+                <th className="whitespace-nowrap px-5 py-3 font-bold">Designation</th>
+                <th className="whitespace-nowrap px-5 py-3 font-bold">Role</th>
+                <th className="whitespace-nowrap px-5 py-3 font-bold">Status</th>
+                <th className="whitespace-nowrap px-5 py-3 font-bold">Update Role</th>
+                <th className="whitespace-nowrap px-5 py-3 font-bold">Actions</th>
               </tr>
             </thead>
             <tbody>
               {members.map((m, i) => (
                 <tr key={m._id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60">
-                  <td className="px-5 py-3 text-slate-500">{i + 1}</td>
-                  <td className="px-5 py-3">
+                  <td className="whitespace-nowrap px-5 py-3 text-slate-500">{i + 1}</td>
+                  <td className="whitespace-nowrap px-5 py-3">
                     <MemberAvatar member={m} />
                   </td>
-                  <td className="px-5 py-3">
+                  <td className="whitespace-nowrap px-5 py-3">
                     <span className="rounded-full bg-gold/15 px-3 py-1 text-xs font-extrabold text-gold">
                       {formatMemberId(m)}
                     </span>
                   </td>
-                  <td className="px-5 py-3 font-semibold text-slate-700">{m.fullName}</td>
-                  <td className="px-5 py-3 text-slate-500">
+                  <td className="whitespace-nowrap px-5 py-3 font-semibold text-slate-700">{m.fullName}</td>
+                  <td className="whitespace-nowrap px-5 py-3 text-slate-500">
                     {m.phoneNumber ? `+91 ${m.phoneNumber}` : '—'}
                   </td>
-                  <td className="px-5 py-3 text-slate-500">{m.designation || 'General Member'}</td>
-                  <td className="px-5 py-3">
+                  <td className="whitespace-nowrap px-5 py-3 text-slate-500">{m.designation || 'General Member'}</td>
+                  <td className="whitespace-nowrap px-5 py-3">
                     <span
                       className={`rounded-full px-2.5 py-0.5 text-[11px] font-extrabold uppercase tracking-wide ${
                         m.role === 'ADMIN' ? 'bg-emerald-900 text-white' : 'bg-slate-100 text-slate-600'
@@ -653,8 +653,8 @@ function ApprovedMembers() {
                       {m.role || 'MEMBER'}
                     </span>
                   </td>
-                  <td className="px-5 py-3"><StatusBadge status={m.status} /></td>
-                  <td className="px-5 py-3">
+                  <td className="whitespace-nowrap px-5 py-3"><StatusBadge status={m.status} /></td>
+                  <td className="whitespace-nowrap px-5 py-3">
                     <select
                       className="input !w-auto !py-1.5 !text-xs"
                       value={m.role === 'ADMIN' ? 'ADMIN' : 'MEMBER'}
@@ -665,7 +665,7 @@ function ApprovedMembers() {
                       <option value="ADMIN">ADMIN</option>
                     </select>
                   </td>
-                  <td className="px-5 py-3">
+                  <td className="whitespace-nowrap px-5 py-3">
                     <div className="flex items-center gap-1.5">
                       <button
                         onClick={() => setEditing(m)}
