@@ -14,6 +14,11 @@ function Avatar({ user, name, className = '' }) {
   const initials = (n) =>
     !n ? '?' : n.trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
 
+  // Reset the error flag whenever the resolved source changes (e.g. login
+  // state refreshes with a valid absolute URL) so a stale failure never
+  // permanently hides a now-valid photo.
+  useEffect(() => setBroken(false), [photoSrc]);
+
   if (photoSrc && !broken) {
     return (
       <img

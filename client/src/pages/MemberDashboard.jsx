@@ -37,6 +37,10 @@ export default function MemberDashboard() {
   const initials = (n) =>
     !n ? '?' : n.trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
 
+  // Reset the photo error flag whenever the resolved source changes so a
+  // stale failure never permanently blocks a now-valid URL.
+  useEffect(() => setPhotoBroken(false), [photoSrc]);
+
   useEffect(() => {
     api
       .get('/member/profile')
