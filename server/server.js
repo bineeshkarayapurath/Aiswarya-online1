@@ -2,7 +2,6 @@ require('dotenv').config();
 const path = require('path');
 const fs = require('fs');
 const express = require('express');
-const cors = require('cors');
 const config = require('./src/config/constants');
 const connectDB = require('./src/config/db');
 const apiRoutes = require('./src/routes/index');
@@ -14,42 +13,28 @@ fs.mkdirSync(path.join(config.STORAGE_DIR, 'photos'), { recursive: true });
 fs.mkdirSync(path.join(config.STORAGE_DIR, 'pdfs'), { recursive: true });
 fs.mkdirSync(path.join(config.STORAGE_DIR, 'qr'), { recursive: true });
 
-// CORS: allow the configured frontend origins (localhost for development plus
-// the production Vercel URL) with credentials, and answer OPTIONS preflight
-// requests so browsers can call the JSON API. Non-browser requests (curl,
-// health checks) have no Origin header and therefore pass.
-const ALLOWED_ORIGIN_SUFFIXES = ['.vercel.app', '.onrender.com'];
+// Explicit CORS middleware: reflect the request origin when it matches an
+// allowed frontend domain (Vercel production + local dev), set the CORS
+// headers, and answer OPTIONS preflight requests with HTTP 204 so browsers can
+// call the JSON API (e.g. POST /api/auth/send-otp). Requests without an Origin
+// header (curl, health checks) pass through untouched.
+const ALLOWED_ORIGINS = ['https://aiswarya-online1.vercel.app', 'http://localhost:5173'];
 
-function isOriginAllowed(origin) {
-  if (config.CLIENT_URLS.includes(origin)) return true;
-  try {
-    const host = new URL(origin).hostname.toLowerCase();
-    return (
-      host === 'localhost' ||
-      host === '127.0.0.1' ||
-      ALLOWED_ORIGIN_SUFFIXES.some((suffix) => host.endsWith(suffix))
-    );
-  } catch (e) {
-    return false;
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    res.set({
+      'Access-Control-Allow-Origin': origin,
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS',
+      'Access-Control-Allow-Credentials': 'true',
+    });
   }
-}
-
-const corsOptions = {
-  origin: (origin, cb) => {
-    if (!origin || isOriginAllowed(origin)) return cb(null, true);
-    console.warn(`[CORS] Blocked origin: ${origin}`);
-    return cb(null, false);
-  },
-  credentials: true,
-  methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  maxAge: 86400,
-  preflightContinue: false,
-};
-app.use(cors(corsOptions));
-// Explicit OPTIONS handler for CORS preflight requests (browsers send these
-// before POST /api/auth/send-otp when cross-origin + JSON is used).
-app.options('*', cors(corsOptions));
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+  next();
+});
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
