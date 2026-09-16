@@ -3,9 +3,26 @@ const fs = require('fs');
 const config = require('../config/constants');
 const User = require('../models/User');
 const Counter = require('../models/Counter');
-const { getNextSequence } = require('../models/Counter');
 const { publicUrl } = require('../utils/storage');
 const { generateApplicationPdf, generateIdCardPdf } = require('../services/pdfService');
+
+// Compute the next membership ID (AISC-001, AISC-002, ...) from the number of
+// approved members so the sequence always continues from the last assigned ID.
+// A uniqueness check bumps past any gap left by removed members.
+async function nextMembershipId() {
+  const count = await User.countDocuments({
+    status: config.STATUS.APPROVED,
+    membershipId: { $exists: true, $nin: ['', null] },
+  });
+  let seq = count + 1;
+  let id = `${config.MEMBERSHIP_PREFIX}-${String(seq).padStart(3, '0')}`;
+  // eslint-disable-next-line no-await-in-loop
+  while (await User.exists({ membershipId: id })) {
+    seq += 1;
+    id = `${config.MEMBERSHIP_PREFIX}-${String(seq).padStart(3, '0')}`;
+  }
+  return id;
+}
 
 exports.listRequests = async (req, res) => {
   try {
@@ -102,9 +119,11 @@ exports.approveRequest = async (req, res) => {
       user.phoneVerifiedVia = 'manual';
     }
 
-    const year = new Date().getFullYear();
-    const seq = await getNextSequence('membership');
-    user.membershipId = `${config.MEMBERSHIP_PREFIX}-${year}-${String(seq).padStart(4, '0')}`;
+    // Only allocate a membership number if the applicant doesn't already have
+    // one (e.g. a re-approved member keeps their existing ID).
+    if (!user.membershipId) {
+      user.membershipId = await nextMembershipId();
+    }
     user.status = config.STATUS.APPROVED;
     user.approvedBy = req.user.fullName;
     user.approvedAt = new Date();

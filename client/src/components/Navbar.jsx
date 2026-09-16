@@ -4,18 +4,20 @@ import { CLUB, featureEnabled } from '../lib/club';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
 import { useTheme } from '../context/ThemeContext';
+import { resolveMedia } from '../api/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaBookOpen, FaShieldAlt, FaImages, FaSun, FaMoon, FaChevronDown, FaUser } from 'react-icons/fa';
 
 function Avatar({ user, name, className = '' }) {
   const [broken, setBroken] = useState(false);
+  const photoSrc = resolveMedia(user?.photoUrl);
   const initials = (n) =>
     !n ? '?' : n.trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
 
-  if (user?.photoUrl && !broken) {
+  if (photoSrc && !broken) {
     return (
       <img
-        src={user.photoUrl}
+        src={photoSrc}
         alt="profile"
         onError={() => setBroken(true)}
         className={`rounded-full border-2 border-gold bg-white object-cover shadow ${className}`}

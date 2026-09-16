@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import api from '../api/client';
+import api, { resolveMedia } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import IDCard from '../components/IDCard';
 import ApplicationPDF from '../components/ApplicationPDF';
@@ -27,15 +27,23 @@ export default function MemberDashboard() {
   const [member, setMember] = useState(user || null);
   const [showPdf, setShowPdf] = useState(false);
   const [clubStats, setClubStats] = useState(null);
+  const [photoBroken, setPhotoBroken] = useState(false);
 
   // Fallback empty object so first render never crashes on null fields; the
   // profile fetch below replaces it with the authoritative server record.
   const m = member || {};
 
+  const photoSrc = resolveMedia(m.photoUrl);
+  const initials = (n) =>
+    !n ? '?' : n.trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
+
   useEffect(() => {
     api
       .get('/member/profile')
-      .then((r) => setMember(r.data.user))
+      .then((r) => {
+        setMember(r.data.user);
+        setPhotoBroken(false);
+      })
       .catch(() => {});
     api
       .get('/public/stats')
@@ -85,14 +93,21 @@ export default function MemberDashboard() {
       {/* Personal profile banner */}
       <div className="mb-8 flex flex-wrap items-center gap-5 rounded-2xl bg-gradient-to-r from-emerald-950 via-emerald-900 to-emerald-800 p-6 shadow-lg">
         <div className="relative shrink-0">
-          <img
-            src={m.photoUrl || '/assets/club-logo.png'}
-            alt="profile"
-            className="h-20 w-20 rounded-2xl border-2 border-gold bg-white object-cover shadow-md"
-          />
+          {photoSrc && !photoBroken ? (
+            <img
+              src={photoSrc}
+              alt="profile"
+              onError={() => setPhotoBroken(true)}
+              className="h-32 w-32 rounded-full border-2 border-emerald-500 bg-white object-cover shadow-md"
+            />
+          ) : (
+            <span className="flex h-32 w-32 items-center justify-center rounded-full border-2 border-emerald-500 bg-emerald-900 text-3xl font-extrabold text-gold-300 shadow-md">
+              {initials(m.fullName)}
+            </span>
+          )}
           {m.status === 'APPROVED' && (
-            <span className="absolute -bottom-1.5 -right-1.5 rounded-full bg-emerald-500 p-1 text-white shadow">
-              <FaCheckCircle className="h-3.5 w-3.5" />
+            <span className="absolute -bottom-1.5 -right-1.5 rounded-full bg-emerald-500 p-1.5 text-white shadow">
+              <FaCheckCircle className="h-4 w-4" />
             </span>
           )}
         </div>

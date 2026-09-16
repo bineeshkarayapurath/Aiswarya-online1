@@ -36,7 +36,7 @@ module.exports = {
     .split(',')
     .map((p) => p.trim())
     .filter(Boolean),
-  MEMBERSHIP_PREFIX: process.env.MEMBERSHIP_PREFIX || 'ALC',
+  MEMBERSHIP_PREFIX: process.env.MEMBERSHIP_PREFIX || 'AISC',
   MEMBERSHIP_YEAR: process.env.MEMBERSHIP_YEAR || new Date().getFullYear(),
   // Library lending rules
   LOAN_DAYS: parseInt(process.env.LOAN_DAYS || '14', 10),
