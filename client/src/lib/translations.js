@@ -7,6 +7,9 @@ const org = clubConfig.organization;
 
 export const en = {
   nav: {
+    welcome: 'Welcome',
+    member: 'Member',
+    myProfile: 'My Profile',
     adminPanel: 'Admin Panel',
     dashboard: 'Dashboard',
     logout: 'Logout',
@@ -77,6 +80,9 @@ export const en = {
 
 export const ml = {
   nav: {
+    welcome: 'സ്വാഗതം',
+    member: 'അംഗം',
+    myProfile: 'എന്റെ പ്രൊഫൈൽ',
     adminPanel: 'അഡ്മിൻ പാനൽ',
     dashboard: 'ഡാഷ്ബോർഡ്',
     logout: 'ലോഗൗട്ട്',

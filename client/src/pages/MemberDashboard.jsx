@@ -61,6 +61,7 @@ export default function MemberDashboard() {
   const rows = [
     ['Membership ID', m.membershipId],
     ['Full Name', m.fullName],
+    ['Role', m.role || 'MEMBER'],
     ['Phone', m.phoneNumber],
     ['Email', m.email || '—'],
     ['Date of Birth', m.dob?.slice(0, 10) || '—'],
@@ -81,16 +82,36 @@ export default function MemberDashboard() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
-      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-extrabold text-emerald-900 dark:text-white">
+      {/* Personal profile banner */}
+      <div className="mb-8 flex flex-wrap items-center gap-5 rounded-2xl bg-gradient-to-r from-emerald-950 via-emerald-900 to-emerald-800 p-6 shadow-lg">
+        <div className="relative shrink-0">
+          <img
+            src={m.photoUrl || '/assets/club-logo.png'}
+            alt="profile"
+            className="h-20 w-20 rounded-2xl border-2 border-gold bg-white object-cover shadow-md"
+          />
+          {m.status === 'APPROVED' && (
+            <span className="absolute -bottom-1.5 -right-1.5 rounded-full bg-emerald-500 p-1 text-white shadow">
+              <FaCheckCircle className="h-3.5 w-3.5" />
+            </span>
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-extrabold text-white sm:text-3xl">
             Welcome, {m.fullName?.split(' ')[0] || 'Member'}
           </h1>
-          <div className="mt-2 flex items-center gap-3">
+          <div className="mt-2 flex flex-wrap items-center gap-2">
             <StatusBadge status={m.status} />
-            <span className="text-sm font-semibold text-slate-500">
-              {m.membershipId}
-            </span>
+            {m.role && (
+              <span className="rounded-full bg-gold px-3 py-1 text-[11px] font-extrabold uppercase tracking-wide text-emerald-950">
+                {m.role}
+              </span>
+            )}
+            {m.membershipId && (
+              <span className="rounded-full bg-white/10 px-3 py-1 text-[11px] font-bold text-emerald-100">
+                {m.membershipId}
+              </span>
+            )}
           </div>
         </div>
         <div className="flex gap-3">
@@ -100,10 +121,7 @@ export default function MemberDashboard() {
           <button onClick={() => download('application')} className="btn-primary !py-2 text-sm">
             <FaFilePdf /> Application PDF
           </button>
-          <button
-            onClick={() => setShowPdf(true)}
-            className="btn-outline !py-2 text-sm"
-          >
+          <button onClick={() => setShowPdf(true)} className="btn-outline !border-white/40 !text-white hover:!bg-white/10 !py-2 text-sm">
             <FaEye /> Preview
           </button>
         </div>

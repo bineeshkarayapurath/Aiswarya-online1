@@ -1,16 +1,55 @@
-import { Link } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { CLUB, featureEnabled } from '../lib/club';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
 import { useTheme } from '../context/ThemeContext';
-import { motion } from 'framer-motion';
-import { FaBookOpen, FaUser, FaShieldAlt, FaImages, FaSun, FaMoon } from 'react-icons/fa';
+import { motion, AnimatePresence } from 'framer-motion';
+import { FaBookOpen, FaShieldAlt, FaImages, FaSun, FaMoon, FaChevronDown, FaUser } from 'react-icons/fa';
+
+function Avatar({ user, name, className = '' }) {
+  const [broken, setBroken] = useState(false);
+  const initials = (n) =>
+    !n ? '?' : n.trim().split(/\s+/).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
+
+  if (user?.photoUrl && !broken) {
+    return (
+      <img
+        src={user.photoUrl}
+        alt="profile"
+        onError={() => setBroken(true)}
+        className={`rounded-full border-2 border-gold bg-white object-cover shadow ${className}`}
+      />
+    );
+  }
+  return (
+    <span
+      className={`flex items-center justify-center rounded-full border-2 border-gold bg-emerald-900 font-extrabold text-gold-300 shadow ${className}`}
+    >
+      {initials(name)}
+    </span>
+  );
+}
 
 export default function Navbar() {
   const { user, logout } = useAuth();
   const { lang, setLang, t } = useLocale();
   const { theme, toggleTheme } = useTheme();
-  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const navigate = useNavigate();
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    const onDocClick = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, []);
+
+  const profileTarget = isAdmin ? '/admin/dashboard' : '/member/dashboard';
+  const displayName = user?.fullName || 'Member';
 
   const langPill = (isActive) =>
     `px-2.5 py-1.5 transition ${
@@ -52,32 +91,89 @@ export default function Navbar() {
 
         <nav className="flex items-center gap-1.5 sm:gap-2">
           {user ? (
-            <>
-              {isSuperAdmin && (
-                <Link
-                  to="/authority/dashboard"
-                  className="flex items-center gap-1.5 rounded-lg bg-emerald-900/10 px-3 py-1.5 text-xs font-semibold text-emerald-900 transition hover:bg-emerald-900/20 dark:text-emerald-300 dark:hover:bg-white/10"
-                >
-                  <FaShieldAlt className="text-sm" />
-                  <span className="hidden sm:inline">{t('nav.adminPanel')}</span>
-                </Link>
-              )}
-              {user.role === 'MEMBER' && user.status === 'APPROVED' && (
-                <Link
-                  to="/member/dashboard"
-                  className="flex items-center gap-1.5 rounded-lg bg-gold/10 px-3 py-1.5 text-xs font-semibold text-gold transition hover:bg-gold/20 dark:text-gold-300"
-                >
-                  <FaUser className="text-sm" />
-                  <span className="hidden sm:inline">{t('nav.dashboard')}</span>
-                </Link>
-              )}
+            <div ref={menuRef} className="relative">
               <button
-                onClick={logout}
-                className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-500 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10"
+                onClick={() => setMenuOpen((v) => !v)}
+                className="flex items-center gap-2.5 rounded-full py-1 pl-1 pr-2.5 transition hover:bg-emerald-900/10 dark:hover:bg-white/10"
+                aria-expanded={menuOpen}
+                aria-haspopup="menu"
               >
-                {t('nav.logout')}
+                <span className="relative shrink-0">
+                  <Avatar user={user} name={displayName} className="h-9 w-9" />
+                  {user.status === 'APPROVED' && (
+                    <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500 dark:border-slate-900" />
+                  )}
+                </span>
+                <span className="hidden text-left leading-tight sm:block">
+                  <span className="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-emerald-300/70">
+                    {t('nav.welcome')}
+                  </span>
+                  <span className="block max-w-[10rem] truncate text-sm font-extrabold text-emerald-900 dark:text-white">
+                    {displayName.split(' ')[0]}
+                  </span>
+                </span>
+                <FaChevronDown
+                  className={`hidden text-xs text-slate-400 transition sm:block ${menuOpen ? 'rotate-180' : ''}`}
+                />
               </button>
-            </>
+
+              <AnimatePresence>
+                {menuOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 top-full z-50 mt-2 w-60 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-emerald-800 dark:bg-emerald-950"
+                    role="menu"
+                  >
+                    <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3 dark:border-emerald-900">
+                      <Avatar user={user} name={displayName} className="h-10 w-10" />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-extrabold text-emerald-900 dark:text-white">
+                          {displayName}
+                        </p>
+                        <p className="truncate text-[11px] text-slate-500 dark:text-emerald-300/70">
+                          {isAdmin ? t('nav.adminPanel') : t('nav.member')} &middot; {user.role}
+                        </p>
+                      </div>
+                    </div>
+
+                    <Link
+                      to={profileTarget}
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-emerald-50 dark:text-emerald-100 dark:hover:bg-white/10"
+                      role="menuitem"
+                    >
+                      <FaUser className="text-gold" /> {t('nav.myProfile')}
+                    </Link>
+
+                    {isAdmin && (
+                      <Link
+                        to="/admin/dashboard"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-emerald-50 dark:text-emerald-100 dark:hover:bg-white/10"
+                        role="menuitem"
+                      >
+                        <FaShieldAlt className="text-gold" /> {t('nav.adminPanel')}
+                      </Link>
+                    )}
+
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        logout();
+                        navigate('/');
+                      }}
+                      className="flex w-full items-center gap-2.5 border-t border-slate-100 px-4 py-2.5 text-left text-sm font-semibold text-red-500 transition hover:bg-red-50 dark:border-emerald-900 dark:hover:bg-white/10"
+                      role="menuitem"
+                    >
+                      {t('nav.logout')}
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           ) : (
             <>
               {featureEnabled('enableGallery') && (
