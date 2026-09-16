@@ -64,9 +64,14 @@ async function verifyOtp(identifier, code) {
 
 exports.sendOtp = async (req, res) => {
   try {
-    const phone = String(req.body.phoneNumber || req.body.identifier || '').trim();
-    if (!phone || phone.length < 6) {
-      return res.status(400).json({ message: 'A valid phone number is required' });
+    const raw = String(req.body.phoneNumber || req.body.identifier || '').trim();
+    // Canonicalise so "+91 99999 99999" / "919999999999" become "9999999999" —
+    // the OTP is stored and delivered against this clean 10-digit value.
+    const phone = canonicalPhone(raw);
+    if (!phone || phone.length !== 10) {
+      return res
+        .status(400)
+        .json({ message: 'A valid 10-digit phone number is required' });
     }
 
     const code = await createOtp(phone);

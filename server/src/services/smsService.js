@@ -9,6 +9,15 @@ function generateOtp(digits = config.OTP_DIGITS) {
   return String(crypto.randomInt(min, max + 1)).padStart(size, '0');
 }
 
+// Strip country code prefixes (+91 / 91 / 0) and any punctuation so Fast2SMS
+// receives a clean 10-digit Indian mobile number. Idempotent for clean numbers.
+function sanitizePhone(v) {
+  let digits = String(v || '').replace(/\D/g, '');
+  if (digits.length === 12 && digits.startsWith('91')) digits = digits.slice(2);
+  else if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1);
+  return digits;
+}
+
 function buildOtpMessage(clubName, otp, minutes) {
   return `Dear Member, your ${clubName} verification code is ${otp}. It is valid for ${minutes} minutes. Please do not share this code with anyone. - Aiswarya Library`;
 }
@@ -16,6 +25,13 @@ function buildOtpMessage(clubName, otp, minutes) {
 async function sendOtpViaFast2Sms(phone, otp) {
   const endpoint = config.FAST2SMS.apiUrl || 'https://www.fast2sms.com/dev/bulkV2';
   const route = config.FAST2SMS.route || 'q';
+  // Fast2SMS requires a clean 10-digit number; sanitize country-code prefixes.
+  const numbers = sanitizePhone(phone);
+  if (numbers.length !== 10) {
+    console.warn(
+      `[FAST2SMS-WARN] Non-10-digit input "${phone}" canonicalised to "${numbers}" – SMS may be rejected.`
+    );
+  }
   const clubName = `${config.CLUB.name}, ${config.CLUB.place}`;
   const message = buildOtpMessage(clubName, otp, config.OTP_EXPIRY_MINUTES);
 
@@ -24,7 +40,7 @@ async function sendOtpViaFast2Sms(phone, otp) {
     message,
     language: 'english',
     flash: 0,
-    numbers: String(phone).replace(/\D/g, ''),
+    numbers,
   };
   if (route === 'dlt') {
     payload.sender_id = config.FAST2SMS.senderId || 'AISWRY';
@@ -50,27 +66,30 @@ async function sendOtpViaFast2Sms(phone, otp) {
       err.code || err.message || 'no error details supplied by the request layer';
     if (err.response && err.response.data) {
       console.error(
-        `[FAST2SMS-REQUEST-FAILED] ${status} for ${phone}: ${err.response.data.message || err.response.data.error || errText}`
+        `[FAST2SMS-REQUEST-FAILED] ${status} for ${numbers}: ${err.response.data.message || err.response.data.error || errText}`
       );
       console.error(`[FAST2SMS-RESPONSE] ${JSON.stringify(err.response.data)}`);
     } else {
-      console.error(`[FAST2SMS-REQUEST-FAILED] ${status} for ${phone}: ${errText}`);
+      console.error(`[FAST2SMS-REQUEST-FAILED] ${status} for ${numbers}: ${errText}`);
     }
     throw new Error(`Fast2SMS request failed (${status}): ${errText}`);
   }
 
   const data = resp.data;
+  // Always log the raw Fast2SMS payload so DLT / template / credit / quota
+  // errors are visible even when the HTTP call itself succeeds.
+  console.log(`[FAST2SMS-RAW] ${route} → ${numbers} HTTP ${resp.status}: ${JSON.stringify(data)}`);
   if (!data || data.return === false) {
     const msg =
       (data && (data.message || data.error)) || 'unexpected response from Fast2SMS';
     // Fast2SMS answers HTTP 200 even for business-level failures, so always log
     // the returned payload to help diagnose quota/template/route problems.
-    console.error(`[FAST2SMS-API-FAILED] ${msg} for ${phone}`);
+    console.error(`[FAST2SMS-API-FAILED] ${msg} for ${numbers}`);
     if (data) console.error(`[FAST2SMS-RESPONSE] ${JSON.stringify(data)}`);
     throw new Error(`Fast2SMS API error: ${msg}`);
   }
 
-  console.log(`[FAST2SMS-OK] ${route} route sent to ${phone}: ${data.message || 'delivered'}`);
+  console.log(`[FAST2SMS-OK] ${route} route sent to ${numbers}: ${data.message || 'delivered'}`);
   return data;
 }
 
@@ -106,6 +125,7 @@ async function sendOtpMessage(toPhone, otp) {
 
 module.exports = {
   generateOtp,
+  sanitizePhone,
   buildOtpMessage,
   sendOtpViaFast2Sms,
   sendOtpMessage,
