@@ -45,11 +45,16 @@ function requireMember(req, res, next) {
 
 // Designation-scoped access for authority accounts. Must run AFTER
 // requireSuperAdmin. An administrator with no designation (legacy default)
-// keeps full access so existing accounts are never locked out.
+// keeps full access so existing accounts are never locked out. ADMIN and
+// SUPER_ADMIN roles are never scoped by designation — they hold full module
+// access (System Settings, Approvals, etc.) regardless of their committee
+// title, mirroring the frontend canAccessModule() override.
+const ADMIN_ROLES = [config.ROLES.ADMIN, config.ROLES.SUPER_ADMIN];
 function requireDesignations(allowed) {
   const roles = Array.isArray(allowed) ? allowed : [allowed];
   return (req, res, next) => {
     if (!req.user) return res.status(403).json({ message: 'Access denied' });
+    if (ADMIN_ROLES.includes(req.user.role)) return next();
     if (!req.user.designation) return next();
     if (!roles.includes(req.user.designation)) {
       return res.status(403).json({
