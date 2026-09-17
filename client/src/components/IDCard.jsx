@@ -15,6 +15,33 @@ const RULES = [
   '6. Members shall abide by club committee rules.',
 ];
 
+// Derive a compact "house name" from the free-form address: keep only the
+// first line / clause and normalise common Kerala house suffixes, so
+// "Karayappurath House, Ambalavayal post..." -> "Karayappurath House".
+function cleanHouseName(address = '') {
+  const first = String(address)
+    .replace(/[\r\n]+/g, ',')
+    .split(/[,，|\n]/)
+    .map((s) => s.trim())
+    .filter(Boolean)[0];
+  if (!first) return '—';
+  const house = first
+    .replace(/\s*[(（][Hh][Oo]?[)）]\s*$/, ' House')
+    .replace(/\s*\bHouse\b\s*$/, ' House')
+    .replace(/\s*\b(?:post|p\.?\s?o\.?|p\.?o\.?|ap\d*|amon\b|road|rd)\b[.,\s]*$/i, '')
+    .replace(/[\s.,;:\-/]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return !house || house.toLowerCase() === 'house' ? '—' : house;
+}
+
+function formatDob(dob) {
+  if (!dob) return '—';
+  const d = new Date(dob);
+  if (Number.isNaN(d.getTime())) return String(dob).slice(0, 10);
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 export default function IDCard({ user, showActions = false, onDownload }) {
   const [side, setSide] = useState('front');
 
@@ -68,56 +95,52 @@ export default function IDCard({ user, showActions = false, onDownload }) {
 function FrontFace({ user, qrValue }) {
   return (
     <div className="flex h-full w-full flex-col bg-gradient-to-br from-[var(--pdf-cardCream1)] to-[var(--pdf-cardCream2)]">
-      {/* Header: emblem + large title + centered location/reg no */}
-      <header className="flex items-center gap-3 border-b-[3px] border-gold bg-gradient-to-r from-emerald-950 via-emerald-900 to-emerald-700 px-3 py-2">
+      {/* Compact header: emblem + long name + reg no (single line) */}
+      <header className="flex items-center gap-2.5 border-b-[3px] border-gold bg-gradient-to-r from-emerald-950 via-emerald-900 to-emerald-700 px-3 py-1.5">
         <img
           src={CLUB.logo}
           alt="Club Logo"
-          className="h-11 w-11 shrink-0 rounded-lg border-2 border-gold bg-white object-contain shadow"
+          className="h-9 w-9 shrink-0 rounded-md border-2 border-gold bg-white object-contain shadow"
         />
         <div className="min-w-0">
-          <p className="text-[13px] font-black leading-tight text-white">
+          <p className="text-[11.5px] font-black leading-tight text-white">
             {CLUB.longName}
           </p>
-          <div className="mt-1 space-y-[1px] text-center leading-snug">
-            <p className="text-[9.5px] font-bold tracking-widest text-gold-300">
-              {CLUB.place.toUpperCase()}
-            </p>
-            <p className="text-[9.5px] font-bold text-white/90">Reg No: {CLUB.regNo}</p>
-          </div>
+          <p className="mt-0.5 truncate text-[8.5px] font-bold tracking-wider text-gold-300">
+            {CLUB.place.toUpperCase()} &middot; Reg No: {CLUB.regNo}
+          </p>
         </div>
       </header>
 
-      {/* Body: photo + middle details + QR (fills card) */}
-      <div className="relative flex flex-1 items-center gap-2.5 px-2.5 py-2.5">
-        {/* Member photo (no background watermark) */}
+      {/* Body: photo + ordered details + QR */}
+      <div className="relative flex flex-1 items-center gap-2.5 px-2.5 py-2">
         <div className="shrink-0 self-center rounded-lg border-[2.5px] border-gold bg-white p-0.5 shadow-md">
           <img
             src={user.photoUrl ? resolveMedia(user.photoUrl) : CLUB.logo}
             alt="Member"
-            className="h-[112px] w-[84px] rounded-md object-cover"
+            className="h-[102px] w-[76px] rounded-md object-cover"
           />
         </div>
 
-        {/* Member details — expanded middle block */}
-        <div className="flex min-w-0 flex-1 flex-col justify-between gap-y-[5px]">
-          <p className="line-clamp-2 text-[12.5px] font-black leading-tight text-slate-800">
+        {/* Member details — name, house, ID, DOB, phone, email (email last) */}
+        <div className="flex min-w-0 flex-1 flex-col justify-between gap-y-[3px]">
+          <p className="truncate text-[12px] font-black leading-tight text-slate-800">
             {user.fullName}
           </p>
-          <p className="line-clamp-2 text-[9px] font-medium leading-snug text-slate-600">
-            {user.address || '—'}
+          <p className="truncate text-[9px] font-medium leading-snug text-slate-600">
+            {cleanHouseName(user.address)}
           </p>
-          <span className="inline-flex w-fit items-center rounded-full bg-gold px-2.5 py-[3px] text-[11px] font-extrabold tracking-wide text-emerald-950 shadow-sm">
+          <span className="inline-flex w-fit items-center rounded-full bg-gold px-2.5 py-[2px] text-[10.5px] font-extrabold tracking-wide text-emerald-950 shadow-sm">
             {user.membershipId || '—'}
           </span>
+          <DetailRow label="DOB" value={formatDob(user.dob)} />
           <DetailRow label="Phone" value={user.phoneNumber} />
           <DetailRow label="Email" value={user.email} />
-          <DetailRow label="DOB" value={user.dob?.slice(0, 10)} />
         </div>
 
         {/* QR code — far right */}
         <div className="shrink-0 self-center rounded-md bg-white p-1 shadow">
-          <QRCodeSVG value={qrValue} size={80} fgColor={clubConfig.themeColors.qr} />
+          <QRCodeSVG value={qrValue} size={78} fgColor={clubConfig.themeColors.qr} />
         </div>
       </div>
     </div>
@@ -126,7 +149,7 @@ function FrontFace({ user, qrValue }) {
 
 function DetailRow({ label, value }) {
   return (
-    <p className="truncate text-[9.5px] font-semibold text-slate-700">
+    <p className="truncate text-[9.5px] font-semibold leading-snug text-slate-700">
       <span className="mr-1 text-[7.5px] font-bold uppercase tracking-wide text-slate-500">
         {label}
       </span>
