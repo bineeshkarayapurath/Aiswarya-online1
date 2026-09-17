@@ -40,125 +40,126 @@ import { canAccessModule } from '../lib/permissions';
 import { moduleEnabled } from '../lib/club';
 import { uploadImages } from '../lib/uploadImages';
 import { useAuth } from '../context/AuthContext';
+import { useLocale } from '../context/LocaleContext';
 import { FaCheckCircle, FaTimesCircle, FaEdit, FaFilePdf, FaIdCardAlt, FaTrashAlt, FaHourglass, FaPhoneAlt, FaEnvelope, FaMapMarkerAlt, FaFacebook, FaInstagram, FaWhatsapp, FaYoutube, FaSave } from 'react-icons/fa';
 
 const MODULES = [
   {
     key: 'approvals',
-    title: 'Approval Control Panel',
-    desc: 'Pending member applications',
+    titleKey: 'admin.modules.approvals.title',
+    descKey: 'admin.modules.approvals.desc',
     icon: UserCheck,
     chip: 'bg-emerald-900 text-amber-300',
     card: 'hover:border-emerald-900/40',
   },
   {
     key: 'members',
-    title: 'Approved Members List',
-    desc: 'All approved members',
+    titleKey: 'admin.modules.members.title',
+    descKey: 'admin.modules.members.desc',
     icon: Users,
     chip: 'bg-emerald-100 text-emerald-800',
     card: 'hover:border-emerald-600/40',
   },
   {
     key: 'committee',
-    title: 'Executive Committee',
-    desc: 'Executive board members',
+    titleKey: 'admin.modules.committee.title',
+    descKey: 'admin.modules.committee.desc',
     icon: ShieldCheck,
     chip: 'bg-sky-100 text-sky-800',
     card: 'hover:border-sky-600/40',
   },
   {
     key: 'catalog',
-    title: 'Library Books Catalog',
-    desc: 'Complete catalog of books',
+    titleKey: 'admin.modules.catalog.title',
+    descKey: 'admin.modules.catalog.desc',
     icon: BookOpen,
     chip: 'bg-orange-100 text-orange-800',
     card: 'hover:border-orange-600/40',
   },
   {
     key: 'issues',
-    title: 'Book Issue Register',
-    desc: 'Lending & return management',
+    titleKey: 'admin.modules.issues.title',
+    descKey: 'admin.modules.issues.desc',
     icon: ArrowLeftRight,
     chip: 'bg-violet-100 text-violet-800',
     card: 'hover:border-violet-600/40',
   },
   {
     key: 'programs',
-    title: 'Program & Minutes Register',
-    desc: 'Meetings, programs & event gallery',
+    titleKey: 'admin.modules.programs.title',
+    descKey: 'admin.modules.programs.desc',
     icon: NotebookPen,
     chip: 'bg-cyan-100 text-cyan-800',
     card: 'hover:border-cyan-600/40',
   },
   {
     key: 'accounts',
-    title: 'Accounts & Finance',
-    desc: 'Income & expense entries',
+    titleKey: 'admin.modules.accounts.title',
+    descKey: 'admin.modules.accounts.desc',
     icon: Wallet,
     chip: 'bg-amber-100 text-amber-800',
     card: 'hover:border-amber-600/40',
   },
   {
     key: 'vouchers',
-    title: 'Receipts & Vouchers',
-    desc: 'Generate receipts, vouchers & PDFs',
+    titleKey: 'admin.modules.vouchers.title',
+    descKey: 'admin.modules.vouchers.desc',
     icon: Receipt,
     chip: 'bg-fuchsia-100 text-fuchsia-800',
     card: 'hover:border-fuchsia-600/40',
   },
   {
     key: 'communityService',
-    title: 'Community Support / ആതുരസേവനം',
-    desc: 'Relief fund, collections & aid',
+    titleKey: 'admin.modules.communityService.title',
+    descKey: 'admin.modules.communityService.desc',
     icon: HeartPulse,
     chip: 'bg-rose-100 text-rose-700',
     card: 'hover:border-rose-500/40',
   },
   {
     key: 'gallery',
-    title: 'Gallery Management',
-    desc: 'Upload & manage gallery photos',
+    titleKey: 'admin.modules.gallery.title',
+    descKey: 'admin.modules.gallery.desc',
     icon: ImagePlus,
     chip: 'bg-pink-100 text-pink-800',
     card: 'hover:border-pink-600/40',
   },
   {
     key: 'vanitha',
-    title: 'Vanitha Vedi',
-    desc: 'Womens wing sub-committee',
+    titleKey: 'admin.modules.vanitha.title',
+    descKey: 'admin.modules.vanitha.desc',
     icon: HeartHandshake,
     chip: 'bg-rose-100 text-rose-700',
     card: 'hover:border-rose-500/40',
   },
   {
     key: 'bala',
-    title: 'Bala Vedi',
-    desc: 'Children & youth wing sub-committee',
+    titleKey: 'admin.modules.bala.title',
+    descKey: 'admin.modules.bala.desc',
     icon: Baby,
     chip: 'bg-teal-100 text-teal-700',
     card: 'hover:border-teal-500/40',
   },
   {
     key: 'yuvatha',
-    title: 'Yuvatha',
-    desc: 'Youth forum sub-committee',
+    titleKey: 'admin.modules.yuvatha.title',
+    descKey: 'admin.modules.yuvatha.desc',
     icon: Zap,
     chip: 'bg-lime-100 text-lime-700',
     card: 'hover:border-lime-600/40',
   },
   {
     key: 'assets',
-    title: 'Assets & Inventory',
-    desc: 'Club furniture, electronics & valuation',
+    titleKey: 'admin.modules.assets.title',
+    descKey: 'admin.modules.assets.desc',
     icon: Boxes,
     chip: 'bg-indigo-100 text-indigo-700',
     card: 'hover:border-indigo-600/40',
   },
   {
     key: 'settings',
-    title: 'System Settings',
-    desc: 'Club config and rules',
+    titleKey: 'admin.modules.settings.title',
+    descKey: 'admin.modules.settings.desc',
     icon: Settings,
     chip: 'bg-slate-200 text-slate-700',
     card: 'hover:border-slate-500/40',
@@ -168,6 +169,7 @@ const MODULES = [
 export default function AuthorityDashboard() {
   const [active, setActive] = useState(null);
   const { user } = useAuth();
+  const { t } = useLocale();
 
   // Role-based module access: an administrator only sees tiles their
   // designation may open (no designation = full access). ADMIN role accounts
@@ -184,11 +186,9 @@ export default function AuthorityDashboard() {
       <div className="mb-8">
         <div className="flex items-center gap-2.5">
           <LayoutGrid className="h-7 w-7 text-emerald-900" />
-          <h1 className="text-3xl font-extrabold text-emerald-900 dark:text-white">Administration Dashboard</h1>
+          <h1 className="text-3xl font-extrabold text-emerald-900 dark:text-white">{t('admin.title')}</h1>
         </div>
-        <p className="mt-2 text-sm text-slate-500">
-          Manage members, committee, library operations, accounts and club settings from one place.
-        </p>
+        <p className="mt-2 text-sm text-slate-500">{t('admin.subtitle')}</p>
       </div>
 
       <motion.div
@@ -211,8 +211,8 @@ export default function AuthorityDashboard() {
               <m.icon className="h-6 w-6" />
             </span>
             <span className="min-w-0">
-              <span className="block font-extrabold text-slate-800">{m.title}</span>
-              <span className="mt-0.5 block text-xs text-slate-500">{m.desc}</span>
+              <span className="block font-extrabold text-slate-800">{t(m.titleKey)}</span>
+              <span className="mt-0.5 block text-xs text-slate-500">{t(m.descKey)}</span>
             </span>
           </motion.button>
         ))}
@@ -250,6 +250,7 @@ export default function AuthorityDashboard() {
 }
 
 function ModuleModal({ module, onClose, children }) {
+  const { t } = useLocale();
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-emerald-950/50 p-4 backdrop-blur-sm"
@@ -268,14 +269,14 @@ function ModuleModal({ module, onClose, children }) {
               <module.icon className="h-5 w-5" />
             </span>
             <div className="min-w-0">
-              <h3 className="truncate text-base font-extrabold text-emerald-900">{module.title}</h3>
-              <p className="text-xs text-slate-500">{module.desc}</p>
+              <h3 className="truncate text-base font-extrabold text-emerald-900">{t(module.titleKey)}</h3>
+              <p className="text-xs text-slate-500">{t(module.descKey)}</p>
             </div>
           </div>
           <button
             onClick={onClose}
             className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-            title="Close"
+            title={t('admin.close')}
           >
             <X className="h-5 w-5" />
           </button>
@@ -288,6 +289,7 @@ function ModuleModal({ module, onClose, children }) {
 
 function PlaceholderPanel({ module }) {
   const Icon = module.icon;
+  const { t } = useLocale();
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col items-center gap-4 rounded-2xl border-2 border-dashed border-slate-200 bg-white px-6 py-14 text-center">
@@ -295,23 +297,22 @@ function PlaceholderPanel({ module }) {
           <Icon className="h-8 w-8" />
         </span>
         <div>
-          <h4 className="text-lg font-extrabold text-slate-700">{module.title}</h4>
+          <h4 className="text-lg font-extrabold text-slate-700">{t(module.titleKey)}</h4>
           <p className="mt-1 text-sm text-slate-500">
-            This module is under development. The full {module.title.toLowerCase()} workflow will be
-            added here shortly.
+            This module is under development. The full {t(module.titleKey).toLowerCase()} workflow will be added here shortly.
           </p>
         </div>
         <span className="rounded-full bg-emerald-900/10 px-4 py-1.5 text-xs font-bold text-emerald-900">
-          Coming Soon
+          {t('admin.comingSoon')}
         </span>
       </div>
 
       {/* Empty container skeleton to build on */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
-          <p className="text-sm font-bold text-slate-600">Placeholder Framework</p>
+          <p className="text-sm font-bold text-slate-600">{t('admin.placeholderFramework')}</p>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
-            Empty
+            {t('admin.empty')}
           </span>
         </div>
         {Array.from({ length: 3 }).map((_, i) => (
@@ -380,6 +381,7 @@ function formatMemberId(m) {
 // Edit dialog for an approved member row: updates member details, photoUrl,
 // and the membership ID via PUT /admin/users/:id.
 function EditMemberModal({ member, onClose, onSaved }) {
+  const { t } = useLocale();
   const [form, setForm] = useState({
     fullName: member?.fullName || '',
     membershipId: member?.membershipId || '',
@@ -442,7 +444,7 @@ function EditMemberModal({ member, onClose, onSaved }) {
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl"
       >
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white p-5">
-          <h3 className="text-lg font-extrabold text-emerald-900">Edit Member</h3>
+          <h3 className="text-lg font-extrabold text-emerald-900">{t('admin.editMember')}</h3>
           <button onClick={onClose} className="rounded-full px-2 py-1 text-slate-400 hover:bg-slate-100">
             ✕
           </button>
@@ -545,6 +547,7 @@ function ApprovedMembers() {
   const [updatingId, setUpdatingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [editing, setEditing] = useState(null);
+  const { t } = useLocale();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -599,7 +602,7 @@ function ApprovedMembers() {
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
       <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-3">
         <p className="flex items-center gap-2 text-sm font-extrabold text-emerald-900">
-          <ShieldCheck className="text-gold" /> Registered Members &amp; Role Management
+          <ShieldCheck className="text-gold" /> {t('admin.membersHeader')}
         </p>
         <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
           {members.length} member{members.length === 1 ? '' : 's'}
@@ -608,7 +611,7 @@ function ApprovedMembers() {
       {members.length === 0 ? (
         <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
           <Users className="h-10 w-10 text-slate-300" />
-          <p className="font-semibold text-slate-500">No approved members yet</p>
+          <p className="font-semibold text-slate-500">{t('admin.noApprovedMembers')}</p>
         </div>
       ) : (
         <div className="overflow-x-auto">
@@ -731,6 +734,7 @@ const EMPTY_SETTINGS = {
 };
 
 function SettingsPanel() {
+  const { t } = useLocale();
   const [form, setForm] = useState(EMPTY_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -761,7 +765,7 @@ function SettingsPanel() {
   return (
     <div className="space-y-5">
       <div className="rounded-2xl border border-slate-200 bg-white p-6">
-        <h4 className="text-base font-extrabold text-emerald-900">Footer & Social Links</h4>
+        <h4 className="text-base font-extrabold text-emerald-900">{t('admin.footerSocial')}</h4>
         <p className="mt-1 text-sm text-slate-500">
           These contact details and social links are shown on the public website footer. Leave a
           field empty to hide the icon/link.
@@ -807,6 +811,7 @@ const DESIGNATIONS = [
 const EXEC_DESIGNATIONS = ['President', 'Secretary', 'Treasurer', 'Executive Member'];
 
 function CommitteePanel({ committeeName }) {
+  const { t } = useLocale();
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [idInput, setIdInput] = useState('');
@@ -910,7 +915,7 @@ function CommitteePanel({ committeeName }) {
       {/* Executive Committee list */}
       <div className="overflow-hidden rounded-2xl border border-gold/40 bg-white">
         <div className="flex items-center justify-between border-b border-gold/40 bg-gold/10 px-5 py-3">
-          <p className="text-sm font-extrabold text-emerald-900">Executive Committee</p>
+          <p className="text-sm font-extrabold text-emerald-900">{t('admin.execCommittee')}</p>
           <span className="rounded-full bg-gold/20 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-gold">
             {executive.length} member{executive.length === 1 ? '' : 's'}
           </span>
@@ -949,7 +954,7 @@ function CommitteePanel({ committeeName }) {
       {/* All committee members */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
-          <p className="text-sm font-extrabold text-emerald-900">All Committee Members</p>
+          <p className="text-sm font-extrabold text-emerald-900">{t('admin.allCommitteeMembers')}</p>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
             {allMembers.length} member{allMembers.length === 1 ? '' : 's'}
           </span>
@@ -1035,6 +1040,7 @@ function PhoneBadge({ verified, via }) {
 }
 
 function ApprovalsPanel() {
+  const { t } = useLocale();
   const [view, setView] = useState('members');
   const [tab, setTab] = useState('PENDING_APPROVAL');
   const [requests, setRequests] = useState([]);
@@ -1115,7 +1121,7 @@ function ApprovalsPanel() {
             view === 'members' ? 'bg-emerald-900 text-white' : 'bg-white text-slate-500 shadow-sm hover:text-emerald-900'
           }`}
         >
-          Membership Applications
+          {t('admin.membershipApplications')}
         </button>
         <button
           onClick={() => setView('submissions')}
@@ -1123,7 +1129,7 @@ function ApprovalsPanel() {
             view === 'submissions' ? 'bg-emerald-900 text-white' : 'bg-white text-slate-500 shadow-sm hover:text-emerald-900'
           }`}
         >
-          Sub-Committee Submissions
+          {t('admin.subCommitteeSubmissions')}
         </button>
       </div>
 
