@@ -14,7 +14,7 @@ import {
 } from 'react-icons/fa';
 import { Crown, GraduationCap, Landmark, BookCheck } from 'lucide-react';
 import { FaMedal, FaFileSignature } from 'react-icons/fa';
-import api from '../api/client';
+import api, { resolveMedia } from '../api/client';
 import Spinner from '../components/Spinner';
 import { StatusBadge } from '../components/StatusBadge';
 import { DESIGNATION_ROLES, DESIGNATIONS } from '../lib/permissions';
@@ -201,7 +201,7 @@ export default function ExecutiveCommittee() {
                       className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-emerald-50"
                     >
                       <img
-                        src={m.photoUrl || '/assets/club-logo.png'}
+                        src={resolveMedia(m.photoUrl) || '/assets/club-logo.png'}
                         alt=""
                         className="h-9 w-9 rounded-lg border border-slate-200 object-cover"
                       />
@@ -227,7 +227,7 @@ export default function ExecutiveCommittee() {
                 className="mt-3 flex items-center gap-4 rounded-2xl border-2 border-emerald-200 bg-emerald-50/60 p-4"
               >
                 <img
-                  src={selected.photoUrl || '/assets/club-logo.png'}
+                  src={resolveMedia(selected.photoUrl) || '/assets/club-logo.png'}
                   alt="member"
                   className="h-16 w-16 rounded-2xl border-2 border-white object-cover shadow"
                 />
@@ -324,7 +324,7 @@ export default function ExecutiveCommittee() {
                     <td className="px-5 py-2.5">
                       <div className="flex items-center gap-3">
                         <img
-                          src={m.photoUrl || '/assets/club-logo.png'}
+                          src={resolveMedia(m.photoUrl) || '/assets/club-logo.png'}
                           alt=""
                           className="h-9 w-9 rounded-lg border border-slate-200 object-cover"
                         />

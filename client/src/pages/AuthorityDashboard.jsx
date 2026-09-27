@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
-import api from '../api/client';
+import api, { resolveMedia } from '../api/client';
 import {
   UserCheck,
   Users,
@@ -351,9 +351,13 @@ function InitialsBadge({ name, className = '' }) {
 
 // Photo cell: renders the member photo when available, otherwise (or on load
 // failure) a neat initials avatar — never a broken <img>.
+// resolveMedia() is required: a stored relative path (photos/abc.jpg or
+// /uploads/photos/abc.jpg) must be prefixed with the API origin, otherwise the
+// browser requests it from the frontend domain and 404s, dropping the officer
+// back to initials even though their photo exists.
 function MemberAvatar({ member }) {
   const [broken, setBroken] = useState(false);
-  const photo = member?.photoUrl;
+  const photo = resolveMedia(member?.photoUrl);
   useEffect(() => setBroken(false), [photo]);
 
   if (photo && !broken) {
@@ -453,7 +457,7 @@ function EditMemberModal({ member, onClose, onSaved }) {
         <div className="grid gap-3 p-5">
           <div className="flex items-center gap-4 rounded-xl bg-slate-50 p-3">
             <img
-              src={form.photoUrl || '/assets/club-logo.png'}
+              src={resolveMedia(form.photoUrl) || '/assets/club-logo.png'}
               alt="member"
               className="h-16 w-16 rounded-2xl border-2 border-emerald-900/20 object-cover"
             />
@@ -1175,7 +1179,7 @@ function ApprovalsPanel() {
             >
               <div className="flex items-start gap-4">
                 <img
-                  src={r.photoUrl || '/assets/club-logo.png'}
+                  src={resolveMedia(r.photoUrl) || '/assets/club-logo.png'}
                   alt="applicant"
                   className="h-14 w-14 rounded-xl border-2 border-emerald-900/20 object-cover"
                 />
@@ -1330,7 +1334,7 @@ function DetailModal({ request, onClose, onApprove, onReject, onDelete, approvin
         <div className="space-y-5 p-5">
           <div className="flex items-center gap-4">
             <img
-              src={request.photoUrl || '/assets/club-logo.png'}
+              src={resolveMedia(request.photoUrl) || '/assets/club-logo.png'}
               alt="applicant"
               className="h-20 w-20 rounded-2xl border-2 border-emerald-900/20 object-cover"
             />
