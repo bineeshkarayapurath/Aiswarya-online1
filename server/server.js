@@ -8,6 +8,31 @@ const apiRoutes = require('./src/routes/index');
 
 const app = express();
 
+// Refuse to start a production server that is missing its security
+// configuration. Every one of these is fail-closed at request time as well;
+// this turns a silent lockout (or, worse, a guessed default) into a loud
+// startup failure instead.
+if (config.NODE_ENV === 'production') {
+  const problems = [];
+  if (!config.JWT_SECRET || config.JWT_SECRET === 'dev-secret-change-me') {
+    problems.push('JWT_SECRET must be set to a strong random value');
+  }
+  if (!config.MASTER_PIN) {
+    problems.push('MASTER_PIN must be set (Authority Zone master PIN)');
+  }
+  if (!config.SUPER_ADMIN_PHONES.length) {
+    problems.push('SUPER_ADMIN_PHONES must list at least one authority phone');
+  }
+  if (!config.FAST2SMS.apiKey) {
+    problems.push('FAST2SMS_API_KEY must be set so OTPs can be delivered');
+  }
+  if (problems.length) {
+    console.error('[FATAL] Refusing to start with an incomplete production config:');
+    for (const p of problems) console.error(`  - ${p}`);
+    process.exit(1);
+  }
+}
+
 // Ensure storage dirs exist
 fs.mkdirSync(path.join(config.STORAGE_DIR, 'photos'), { recursive: true });
 fs.mkdirSync(path.join(config.STORAGE_DIR, 'pdfs'), { recursive: true });
@@ -66,7 +91,7 @@ connectDB().then(() => {
     );
     console.log(`[CORS] Allowed origins: ${config.CLIENT_URLS.join(', ')}`);
     if (config.NODE_ENV !== 'production') {
-      console.log('[DEV MODE] SMS delivery disabled – OTPs appear in the logs.');
+      console.log('[DEV MODE] SMS delivery disabled – read the OTP from this log.');
     }
   });
 });

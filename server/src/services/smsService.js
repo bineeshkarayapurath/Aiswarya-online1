@@ -94,18 +94,23 @@ async function sendOtpViaFast2Sms(phone, otp) {
 }
 
 async function sendOtpMessage(toPhone, otp) {
-  // DEV MODE fallback: never call the paid gateway outside production. The code
-  // is logged to the server/Render console so flows can still be tested.
+  // Outside production there is no paid gateway, so the real, freshly
+  // generated code is written to the server console instead of being texted.
+  // This is a delivery substitute, not an auth bypass: the code still has to
+  // match the bcrypt hash in the Otp collection to be accepted.
   if (config.NODE_ENV !== 'production') {
     // eslint-disable-next-line no-console
     console.log(`[DEV-MODE] OTP for ${toPhone}: ${otp}`);
-    return { devOtp: otp };
+    return { devOtp: config.DEV_ECHO_OTP ? otp : null };
   }
 
   if (!config.FAST2SMS.apiKey) {
     // eslint-disable-next-line no-console
-    console.log(`[DEV-MODE] FAST2SMS_API_KEY missing – OTP for ${toPhone}: ${otp}`);
-    return { devOtp: otp };
+    console.error(
+      `[SMS] FAST2SMS_API_KEY is not configured — cannot deliver OTP to ${toPhone}. ` +
+        'Set FAST2SMS_API_KEY in the environment.'
+    );
+    throw new Error('SMS gateway is not configured');
   }
 
   try {

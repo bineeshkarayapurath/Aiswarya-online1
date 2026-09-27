@@ -107,11 +107,20 @@ npm run dev            # http://localhost:5173
 ### Environment
 
 - **server**: `.env` — `MONGO_URI`, `JWT_SECRET`, `PUBLIC_API_URL`, `CLIENT_URLS`,
-  `FAST2SMS_API_KEY`, `IMG_BB_API_KEY`, `MASTER_PIN`, `SUPER_ADMIN_PHONES`, `TEST_PHONE`/`TEST_OTP`.
+  `FAST2SMS_API_KEY`, `IMG_BB_API_KEY`, `MASTER_PIN`, `SUPER_ADMIN_PHONES`, and optionally
+  `DEV_ECHO_OTP`. See `server/.env.example`.
 - **client**: `.env` — `VITE_API_BASE_URL` (`/api` in dev, absolute Render URL in production).
 
-### Local test shortcuts (dev mode)
+### Authentication
 
-- Register OTP: `123456` (returned as `devOtp`) — NODE_ENV != production.
-- Authority login: any phone in `SUPER_ADMIN_PHONES` or `TEST_PHONE` (`9999999999`) + PIN `778899`,
-  OTP `123456`.
+There are no hardcoded test credentials, fixed OTPs, or backdoor accounts. Every code is
+generated per request by `generateOtp()`, stored as a bcrypt hash in the `Otp` collection,
+and verified against that record — so no fixed value can be typed in to bypass it. Authority
+login is authorised solely by `SUPER_ADMIN_PHONES` plus `MASTER_PIN`, both required from the
+environment; `server.js` refuses to boot in production if `JWT_SECRET`, `MASTER_PIN`,
+`SUPER_ADMIN_PHONES` or `FAST2SMS_API_KEY` are missing or left at their defaults.
+
+In local development the SMS gateway is skipped and the real generated code is written to the
+server console (`[DEV-MODE] OTP for <phone>: <code>`) — read it from there, or set
+`DEV_ECHO_OTP=true` to have it returned in the API response so the UI can show it. That
+flag is ignored in production.

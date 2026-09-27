@@ -43,7 +43,7 @@ export const samplePendingUser = {
 export const sampleSuperAdmin = {
   _id: 'dev-admin-001',
   fullName: 'Secretary',
-  phoneNumber: '9999999999',
+  phoneNumber: '9000000000',
   membershipId: null,
   registrationNo: '12 BTY 6652',
   role: 'SUPER_ADMIN',

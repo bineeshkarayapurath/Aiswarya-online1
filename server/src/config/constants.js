@@ -26,16 +26,27 @@ module.exports = {
   // stored /uploads/... paths are returned to the client as fully-qualified URLs
   // so photos and PDFs load from the backend's separate production domain.
   PUBLIC_API_URL: process.env.PUBLIC_API_URL || '',
-  TEST_PHONE: '9999999999',
-  TEST_OTP: '123456',
+  // No test phone / test OTP exists. Every code is generated per request by
+  // smsService.generateOtp(), stored as a bcrypt hash, and verified against the
+  // database — there is no fixed value that can be typed in to bypass that.
   MONGO_URI:
     process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/aiswarya_library',
   JWT_SECRET: process.env.JWT_SECRET || 'dev-secret-change-me',
-  MASTER_PIN: process.env.MASTER_PIN || '778899',
+  // Authority Zone master PIN. Intentionally has NO default: an unset value
+  // fails every comparison, so a misconfigured deployment is locked out rather
+  // than open. server.js refuses to boot in production without it.
+  MASTER_PIN: process.env.MASTER_PIN || '',
   SUPER_ADMIN_PHONES: (process.env.SUPER_ADMIN_PHONES || '')
     .split(',')
     .map((p) => p.trim())
     .filter(Boolean),
+  // Opt-in echo of the real, freshly generated OTP back to the caller so local
+  // dev can show it in the UI. Off unless explicitly enabled, and always
+  // ignored in production. Reading the code from the server console needs no
+  // flag at all.
+  DEV_ECHO_OTP:
+    process.env.NODE_ENV !== 'production' &&
+    String(process.env.DEV_ECHO_OTP || '').toLowerCase() === 'true',
   MEMBERSHIP_PREFIX: process.env.MEMBERSHIP_PREFIX || 'AISC',
   MEMBERSHIP_YEAR: process.env.MEMBERSHIP_YEAR || new Date().getFullYear(),
   // Library lending rules

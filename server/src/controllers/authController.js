@@ -33,11 +33,10 @@ async function createOtp(identifier) {
 
 async function verifyOtp(identifier, code) {
   const cleanCode = String(code || '').trim();
-  // DEV MODE bypass: the fixed test OTP skips real SMS delivery entirely.
-  if (config.NODE_ENV !== 'production' && cleanCode === config.TEST_OTP) {
-    return true;
-  }
 
+  // No fixed/test code is accepted here. The only way past this is a record in
+  // the Otp collection whose bcrypt hash matches, created by a real
+  // generateOtp() + Fast2SMS delivery.
   const otpDoc = await Otp.findOne({
     identifier,
     used: false,
@@ -52,7 +51,7 @@ async function verifyOtp(identifier, code) {
   }
 
   otpDoc.attempts += 1;
-  const match = await bcrypt.compare(code, otpDoc.codeHash);
+  const match = await bcrypt.compare(cleanCode, otpDoc.codeHash);
   if (!match) {
     await otpDoc.save();
     throw new Error('Invalid OTP');
@@ -239,16 +238,11 @@ exports.adminLoginSendOtp = async (req, res) => {
     const { phone } = req.body;
     const normalized = String(phone || '').trim();
     const canonical = canonicalPhone(normalized);
-    const isTestAdmin =
-      config.NODE_ENV !== 'production' && canonical === canonicalPhone(config.TEST_PHONE);
-    if (!SUPER_ADMIN_PHONES.includes(canonical) && !isTestAdmin) {
+    // Authority access is decided solely by SUPER_ADMIN_PHONES. There is no
+    // test number and no code returned in the response — a real OTP is always
+    // generated and delivered through Fast2SMS.
+    if (!SUPER_ADMIN_PHONES.includes(canonical)) {
       return res.status(403).json({ message: 'Unauthorised phone number' });
-    }
-    if (isTestAdmin || config.NODE_ENV !== 'production') {
-      return res.json({
-        message: 'Test OTP ready (DEV MODE)',
-        devOtp: config.TEST_OTP,
-      });
     }
     const code = await createOtp(normalized);
     const result = await sendOtpMessage(normalized, code);
@@ -263,17 +257,16 @@ exports.adminLoginVerify = async (req, res) => {
     const { phone, code, masterPin } = req.body;
     const normalized = String(phone || '').trim();
     const canonical = canonicalPhone(normalized);
-    const devBypass =
-      config.NODE_ENV !== 'production' &&
-      String(masterPin || '').trim() === '123456' &&
-      String(code || '').trim() === config.TEST_OTP;
 
-    if (!devBypass && masterPin !== config.MASTER_PIN) {
+    // Real master PIN from the environment — no hardcoded default and no
+    // dev bypass. An unset MASTER_PIN matches nothing, locking the zone shut.
+    if (!config.MASTER_PIN) {
+      return res.status(503).json({ message: 'Authority Zone is not configured' });
+    }
+    if (String(masterPin || '').trim() !== config.MASTER_PIN) {
       return res.status(403).json({ message: 'Invalid master PIN' });
     }
-    const isTestAdmin =
-      config.NODE_ENV !== 'production' && canonical === canonicalPhone(config.TEST_PHONE);
-    if (!devBypass && !SUPER_ADMIN_PHONES.includes(canonical) && !isTestAdmin) {
+    if (!SUPER_ADMIN_PHONES.includes(canonical)) {
       return res.status(403).json({ message: 'Unauthorised phone number' });
     }
     await verifyOtp(normalized, String(code || '').trim());
