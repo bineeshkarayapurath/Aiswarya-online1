@@ -65,10 +65,40 @@ function requireDesignations(allowed) {
   };
 }
 
+// Module access for a single specialist officer. Replaces the
+// requireSuperAdmin + requireDesignations pair on routes owned by one
+// designation (a Treasurer owns Accounts/Vouchers, a Librarian owns
+// Catalog/Issues), which previously demanded a top-level ADMIN role and made the
+// designation list unreachable: an ADMIN short-circuits requireDesignations, and
+// a plain MEMBER was stopped by requireSuperAdmin first.
+//
+// Grants access when either:
+//   - the account is ADMIN / SUPER_ADMIN (full access, as before), or
+//   - it is an APPROVED member whose designation is in `allowed`.
+// Nothing else reaches the controller, so a Treasurer still cannot open
+// approvals, settings, gallery or the committee.
+function requireOfficerOrAdmin(allowed) {
+  const roles = Array.isArray(allowed) ? allowed : [allowed];
+  return (req, res, next) => {
+    const u = req.user;
+    if (!u) return res.status(403).json({ message: 'Access denied' });
+    if (ADMIN_ROLES.includes(u.role)) return next();
+    if (u.status === config.STATUS.APPROVED && u.designation && roles.includes(u.designation)) {
+      return next();
+    }
+    return res.status(403).json({
+      message: u.designation
+        ? `Your designation (${u.designation}) does not grant access to this module`
+        : 'Access denied',
+    });
+  };
+}
+
 module.exports = {
   signToken,
   requireAuth,
   requireSuperAdmin,
   requireMember,
   requireDesignations,
+  requireOfficerOrAdmin,
 };

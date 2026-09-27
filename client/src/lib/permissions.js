@@ -54,3 +54,31 @@ export function canAccessModule(key, designation, role) {
 export function canManageModule(key, designation, role) {
   return canAccessModule(key, designation, role);
 }
+
+// Does this designation carry top-level admin access on its own?
+// Mirrors the server's EXEC_ACCESS / designationGrantsAdmin().
+export function isDesignationAdmin(designation) {
+  return Boolean(designation) && EXEC_GROUP.includes(designation);
+}
+
+// The role a member effectively presents. A President / Secretary / Executive
+// Committee Member is ADMIN by virtue of the designation, exactly like the
+// server's effectiveRole(). Keeps the members table honest even if it is
+// rendered from a payload that predates the auto-grant.
+export function effectiveRole(member) {
+  if (!member) return 'MEMBER';
+  if (member.role && member.role !== 'MEMBER') return member.role;
+  if (member.status === 'APPROVED' && isDesignationAdmin(member.designation)) return 'ADMIN';
+  return 'MEMBER';
+}
+
+// True when the member's ADMIN comes from the designation rather than an
+// explicit set-role. Their admin access cannot be revoked by the role dropdown
+// — only by changing the designation — so the control is shown as fixed.
+export function roleIsDesignationDerived(member) {
+  return (
+    member?.role === 'MEMBER' &&
+    member?.status === 'APPROVED' &&
+    isDesignationAdmin(member.designation)
+  );
+}

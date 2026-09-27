@@ -36,7 +36,7 @@ import CommunityServicePanel from '../components/CommunityServicePanel';
 import ExecutiveCommittee from '../components/ExecutiveCommittee';
 import ProgramApprovals from '../components/ProgramApprovals';
 import AssetsPanel from '../components/AssetsPanel';
-import { canAccessModule } from '../lib/permissions';
+import { canAccessModule, effectiveRole, roleIsDesignationDerived } from '../lib/permissions';
 import { moduleEnabled } from '../lib/club';
 import { uploadImages } from '../lib/uploadImages';
 import { useAuth } from '../context/AuthContext';
@@ -654,18 +654,28 @@ function ApprovedMembers() {
                   <td className="whitespace-nowrap px-5 py-3">
                     <span
                       className={`rounded-full px-2.5 py-0.5 text-[11px] font-extrabold uppercase tracking-wide ${
-                        m.role === 'ADMIN' ? 'bg-emerald-900 text-white' : 'bg-slate-100 text-slate-600'
+                        effectiveRole(m) === 'ADMIN' ? 'bg-emerald-900 text-white' : 'bg-slate-100 text-slate-600'
                       }`}
+                      title={
+                        roleIsDesignationDerived(m)
+                          ? 'Admin access granted by designation'
+                          : undefined
+                      }
                     >
-                      {m.role || 'MEMBER'}
+                      {effectiveRole(m)}
                     </span>
                   </td>
                   <td className="whitespace-nowrap px-5 py-3"><StatusBadge status={m.status} /></td>
                   <td className="whitespace-nowrap px-5 py-3">
                     <select
                       className="input !w-auto !py-1.5 !text-xs"
-                      value={m.role === 'ADMIN' ? 'ADMIN' : 'MEMBER'}
-                      disabled={updatingId === m._id}
+                      value={effectiveRole(m)}
+                      disabled={updatingId === m._id || roleIsDesignationDerived(m)}
+                      title={
+                        roleIsDesignationDerived(m)
+                          ? `${m.designation} carries admin access — change the designation to remove it`
+                          : undefined
+                      }
                       onChange={(e) => setRole(m, e.target.value)}
                     >
                       <option value="MEMBER">MEMBER</option>

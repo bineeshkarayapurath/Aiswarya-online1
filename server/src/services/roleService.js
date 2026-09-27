@@ -51,8 +51,26 @@ async function syncDesignationRole(user) {
   return user;
 }
 
+// The role an account should present, derived from its designation. Pure —
+// performs no database write — so read endpoints can report President and
+// Secretary officers as ADMIN without persisting on every list request.
+// syncDesignationRole() is what actually commits the change; this keeps the
+// displayed value correct in the meantime (e.g. legacy records written before
+// the auto-grant existed, or a designation set outside setDesignation).
+//
+// Never steps up SUPER_ADMIN, and never rewrites a role an admin set by hand.
+function effectiveRole(user) {
+  if (!user) return config.ROLES.MEMBER;
+  if (user.role !== config.ROLES.MEMBER) return user.role;
+  if (user.status === config.STATUS.APPROVED && designationGrantsAdmin(user.designation)) {
+    return config.ROLES.ADMIN;
+  }
+  return user.role;
+}
+
 module.exports = {
   AUTO_GRANT,
   designationGrantsAdmin,
+  effectiveRole,
   syncDesignationRole,
 };

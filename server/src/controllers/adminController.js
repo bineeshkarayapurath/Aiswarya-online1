@@ -5,7 +5,7 @@ const User = require('../models/User');
 const Counter = require('../models/Counter');
 const { publicUrl } = require('../utils/storage');
 const { generateApplicationPdf, generateIdCardPdf } = require('../services/pdfService');
-const { syncDesignationRole } = require('../services/roleService');
+const { syncDesignationRole, effectiveRole } = require('../services/roleService');
 
 // Compute the next membership ID (AISC-001, AISC-002, ...) from the number of
 // approved members so the sequence always continues from the last assigned ID.
@@ -70,6 +70,9 @@ exports.listRequests = async (req, res) => {
 // Approved members list. Photo URLs are normalised to fully-qualified public
 // URLs so the Approved Members table in the Authority Dashboard renders photos
 // regardless of how they were stored (relative /uploads/... vs CDN).
+// `role` is reported through effectiveRole() so a President / Secretary shows as
+// ADMIN here immediately, without waiting for their next login to persist the
+// auto-grant (and without writing on every list request).
 exports.listAll = async (req, res) => {
   try {
     const users = await User.find({
@@ -80,6 +83,7 @@ exports.listAll = async (req, res) => {
       await ensureMembershipId(u);
       const obj = u.toObject();
       delete obj.lowerPhone;
+      obj.role = effectiveRole(obj);
       obj.photoUrl = obj.photoUrl ? publicUrl(obj.photoUrl) : '';
       if (obj.applicationPdfUrl) obj.applicationPdfUrl = publicUrl(obj.applicationPdfUrl);
       if (obj.idCardPdfUrl) obj.idCardPdfUrl = publicUrl(obj.idCardPdfUrl);

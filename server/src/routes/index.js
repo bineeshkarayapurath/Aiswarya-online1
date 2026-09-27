@@ -1,7 +1,7 @@
 const express = require('express');
 const upload = require('../middleware/upload');
 const { galleryUpload } = upload;
-const { requireAuth, requireSuperAdmin, requireMember, requireDesignations } = require('../middleware/auth');
+const { requireAuth, requireSuperAdmin, requireMember, requireDesignations, requireOfficerOrAdmin } = require('../middleware/auth');
 const auth = require('../controllers/authController');
 const admin = require('../controllers/adminController');
 const member = require('../controllers/memberController');
@@ -188,19 +188,20 @@ router.post(
   minutes.rejectProgram
 );
 
-// Accounts & Finance (Treasurer)
-router.get('/admin/accounts', requireAuth, requireSuperAdmin, requireDesignations(['Treasurer']), accounts.listAccounts);
-router.get('/admin/accounts/settings', requireAuth, requireSuperAdmin, requireDesignations(['Treasurer']), accounts.getSettings);
-router.put('/admin/accounts/settings', requireAuth, requireSuperAdmin, requireDesignations(['Treasurer']), accounts.updateSettings);
-router.post('/admin/accounts', requireAuth, requireSuperAdmin, requireDesignations(['Treasurer']), accounts.createManualEntry);
-router.get('/admin/accounts/transfers', requireAuth, requireSuperAdmin, requireDesignations(['Treasurer']), accounts.listTransfers);
-router.post('/admin/accounts/transfers', requireAuth, requireSuperAdmin, requireDesignations(['Treasurer']), accounts.createTransfer);
+// Accounts & Finance (Treasurer) — a Treasurer reaches this module on the
+// strength of the designation alone; no top-level ADMIN role required.
+router.get('/admin/accounts', requireAuth, requireOfficerOrAdmin(['Treasurer']), accounts.listAccounts);
+router.get('/admin/accounts/settings', requireAuth, requireOfficerOrAdmin(['Treasurer']), accounts.getSettings);
+router.put('/admin/accounts/settings', requireAuth, requireOfficerOrAdmin(['Treasurer']), accounts.updateSettings);
+router.post('/admin/accounts', requireAuth, requireOfficerOrAdmin(['Treasurer']), accounts.createManualEntry);
+router.get('/admin/accounts/transfers', requireAuth, requireOfficerOrAdmin(['Treasurer']), accounts.listTransfers);
+router.post('/admin/accounts/transfers', requireAuth, requireOfficerOrAdmin(['Treasurer']), accounts.createTransfer);
 
 // Receipts & Vouchers (Treasurer) — auto-syncs with the Accounts ledger.
-router.get('/admin/vouchers/members', requireAuth, requireSuperAdmin, requireDesignations(['Treasurer']), vouchers.searchMembers);
-router.get('/admin/vouchers', requireAuth, requireSuperAdmin, requireDesignations(['Treasurer']), vouchers.listVouchers);
-router.get('/admin/vouchers/:id', requireAuth, requireSuperAdmin, requireDesignations(['Treasurer']), vouchers.getVoucher);
-router.post('/admin/vouchers', requireAuth, requireSuperAdmin, requireDesignations(['Treasurer']), vouchers.createVoucher);
+router.get('/admin/vouchers/members', requireAuth, requireOfficerOrAdmin(['Treasurer']), vouchers.searchMembers);
+router.get('/admin/vouchers', requireAuth, requireOfficerOrAdmin(['Treasurer']), vouchers.listVouchers);
+router.get('/admin/vouchers/:id', requireAuth, requireOfficerOrAdmin(['Treasurer']), vouchers.getVoucher);
+router.post('/admin/vouchers', requireAuth, requireOfficerOrAdmin(['Treasurer']), vouchers.createVoucher);
 
 // Community Service & Relief Fund (executive officers)
 router.get('/admin/community-service/members', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), cs.searchMembers);
@@ -241,19 +242,18 @@ router.post(
 router.delete('/admin/gallery/:id', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), gallery.deleteAlbum);
 
 // Library books catalog (Librarian)
-router.get('/admin/books', requireAuth, requireSuperAdmin, requireDesignations(['Librarian']), catalog.listBooks);
-router.get('/admin/books/meta', requireAuth, requireSuperAdmin, requireDesignations(['Librarian']), catalog.bookMeta);
-router.get('/admin/books/available', requireAuth, requireSuperAdmin, requireDesignations(['Librarian']), issues.searchBooks);
-router.post('/admin/books', requireAuth, requireSuperAdmin, requireDesignations(['Librarian']), catalog.createBook);
+router.get('/admin/books', requireAuth, requireOfficerOrAdmin(['Librarian']), catalog.listBooks);
+router.get('/admin/books/meta', requireAuth, requireOfficerOrAdmin(['Librarian']), catalog.bookMeta);
+router.get('/admin/books/available', requireAuth, requireOfficerOrAdmin(['Librarian']), issues.searchBooks);
+router.post('/admin/books', requireAuth, requireOfficerOrAdmin(['Librarian']), catalog.createBook);
 router.post(
   '/admin/books/bulk',
   requireAuth,
-  requireSuperAdmin,
-  requireDesignations(['Librarian']),
+  requireOfficerOrAdmin(['Librarian']),
   upload.spreadsheetUpload.single('file'),
   catalog.bulkUpload
 );
-router.delete('/admin/books/:id', requireAuth, requireSuperAdmin, requireDesignations(['Librarian']), catalog.deleteBook);
+router.delete('/admin/books/:id', requireAuth, requireOfficerOrAdmin(['Librarian']), catalog.deleteBook);
 
 // Assets & inventory management (administrative officers)
 router.get('/assets', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), assets.list);
@@ -262,11 +262,11 @@ router.put('/assets/:id', requireAuth, requireSuperAdmin, requireDesignations(EX
 router.delete('/assets/:id', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), assets.deleteAsset);
 
 // Book Issue & Return Register (Librarian)
-router.get('/admin/issues', requireAuth, requireSuperAdmin, requireDesignations(['Librarian']), issues.listIssues);
-router.get('/admin/issues/stats', requireAuth, requireSuperAdmin, requireDesignations(['Librarian']), issues.issueStats);
-router.get('/admin/issues/members', requireAuth, requireSuperAdmin, requireDesignations(['Librarian']), issues.searchMembers);
-router.post('/admin/issues', requireAuth, requireSuperAdmin, requireDesignations(['Librarian']), issues.createIssue);
-router.post('/admin/issues/:id/return', requireAuth, requireSuperAdmin, requireDesignations(['Librarian']), issues.returnBook);
+router.get('/admin/issues', requireAuth, requireOfficerOrAdmin(['Librarian']), issues.listIssues);
+router.get('/admin/issues/stats', requireAuth, requireOfficerOrAdmin(['Librarian']), issues.issueStats);
+router.get('/admin/issues/members', requireAuth, requireOfficerOrAdmin(['Librarian']), issues.searchMembers);
+router.post('/admin/issues', requireAuth, requireOfficerOrAdmin(['Librarian']), issues.createIssue);
+router.post('/admin/issues/:id/return', requireAuth, requireOfficerOrAdmin(['Librarian']), issues.returnBook);
 
 // Member
 router.get('/member/profile', requireAuth, requireMember, member.myProfile);
