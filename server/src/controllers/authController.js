@@ -5,6 +5,7 @@ const User = require('../models/User');
 const Otp = require('../models/Otp');
 const { signToken } = require('../middleware/auth');
 const { generateOtp, sendOtpMessage } = require('../services/smsService');
+const { syncDesignationRole } = require('../services/roleService');
 
 // Normalise a phone number so "9999999999", "919999999999", "+91 99999 99999"
 // all match the same value (Indian mobile = 10 digits).
@@ -219,6 +220,11 @@ exports.memberLogin = async (req, res) => {
       return res.status(403).json({ message: 'Access denied. Account not approved or not found.' });
     }
 
+    // An Executive Committee designation (President, Secretary, ...) grants
+    // admin access automatically, so the session carries the right role
+    // without anyone having to run set-role by hand.
+    await syncDesignationRole(user);
+
     const token = signToken(user);
     const userObj = user.toObject();
     delete userObj.lowerPhone;
@@ -283,12 +289,16 @@ exports.adminLoginVerify = async (req, res) => {
         address: 'Club Office',
         role: config.ROLES.ADMIN,
         designation: 'Executive Committee Member',
+        // Granted by the authority-login flow itself, not derived from the
+        // designation — so syncDesignationRole will never auto-revoke it.
+        roleSource: 'manual',
         status: config.STATUS.APPROVED,
         registrationNo: config.CLUB.regNo,
       });
       await user.save();
     } else if (user.role !== config.ROLES.ADMIN && user.role !== config.ROLES.SUPER_ADMIN) {
       user.role = config.ROLES.ADMIN;
+      user.roleSource = 'manual';
       user.status = config.STATUS.APPROVED;
       await user.save();
     }
@@ -301,6 +311,9 @@ exports.adminLoginVerify = async (req, res) => {
 };
 
 exports.getMe = async (req, res) => {
+  // A designation change made by another officer takes effect on the next
+  // profile fetch, so a promoted/deposed member never keeps a stale role.
+  await syncDesignationRole(req.user);
   const userObj = req.user.toObject();
   delete userObj.lowerPhone;
   return res.json({ user: userObj });

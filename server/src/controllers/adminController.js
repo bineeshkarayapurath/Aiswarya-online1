@@ -5,6 +5,7 @@ const User = require('../models/User');
 const Counter = require('../models/Counter');
 const { publicUrl } = require('../utils/storage');
 const { generateApplicationPdf, generateIdCardPdf } = require('../services/pdfService');
+const { syncDesignationRole } = require('../services/roleService');
 
 // Compute the next membership ID (AISC-001, AISC-002, ...) from the number of
 // approved members so the sequence always continues from the last assigned ID.
@@ -397,6 +398,10 @@ exports.setDesignation = async (req, res) => {
     user.designationUpdatedAt = next ? new Date() : null;
     await user.save();
 
+    // Apply the role change immediately rather than waiting for the member's
+    // next login / profile fetch, so the roster and dashboard stay in step.
+    await syncDesignationRole(user);
+
     return res.json({
       message: next ? `${user.fullName} is now ${next}` : `${user.fullName} is now a General Member`,
       member: execMemberView(user),
@@ -431,6 +436,9 @@ exports.setRole = async (req, res) => {
       return res.status(400).json({ message: 'Only approved members can be assigned a role' });
     }
     user.role = role;
+    // An explicit assignment is the admin's decision: mark it manual so a later
+    // designation change will not auto-revoke it.
+    user.roleSource = 'manual';
     await user.save();
     return res.json({
       message: `${user.fullName} is now ${role}`,

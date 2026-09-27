@@ -81,6 +81,9 @@ module.exports = {
   EXECUTIVE_COMMITTEE: 'Executive Committee',
   // Executive officers granted the administrative capacity: overview, approval
   // workflows and sub-committee / program management.
+  // Doubles as the set of designations that auto-grant the ADMIN role (see
+  // services/roleService.js), so an officer can never hold a top-level admin
+  // role for a module the designation would not already open.
   EXEC_ACCESS: [
     'President',
     'Vice President',

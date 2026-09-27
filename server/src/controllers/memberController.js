@@ -2,6 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const config = require('../config/constants');
 const { storagePath, publicUrl } = require('../utils/storage');
+const { syncDesignationRole } = require('../services/roleService');
 
 // Normalised member view: media paths stored as relative /uploads/... (or
 // "photos/x.jpg") are exposed to the client as fully-qualified public URLs so
@@ -16,6 +17,7 @@ function userView(u) {
 }
 
 exports.myProfile = async (req, res) => {
+  await syncDesignationRole(req.user);
   res.json({ user: userView(req.user) });
 };
 

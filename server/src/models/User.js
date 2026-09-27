@@ -33,6 +33,17 @@ const UserSchema = new mongoose.Schema({
     default: 'MEMBER',
   },
 
+  // Provenance of `role`. 'manual' = an admin explicitly assigned it via
+  // set-role (never auto-revoked). 'designation' = derived automatically from
+  // the Executive Committee designation, so losing the designation demotes the
+  // account back to MEMBER. Defaults to 'manual' so pre-existing accounts keep
+  // whatever an admin gave them.
+  roleSource: {
+    type: String,
+    enum: ['manual', 'designation'],
+    default: 'manual',
+  },
+
   // Main Executive Committee designation. Powers role-based dashboard access
   // for authority accounts ('' = general member / legacy full access).
   designation: {
