@@ -55,7 +55,10 @@ exports.listRequests = async (req, res) => {
       photoUrl: u.photoUrl ? publicUrl(u.photoUrl) : '',
       recommender: u.recommender,
       status: u.status,
-      role: u.role,
+      designation: u.designation || '',
+      // Effective, not stored, so a freshly designated President / Secretary is
+      // already recognised as ADMIN by the approvals screen.
+      role: effectiveRole(u),
       createdAt: u.createdAt,
       phoneVerified: u.phoneVerified,
       phoneVerifiedVia: u.phoneVerifiedVia,

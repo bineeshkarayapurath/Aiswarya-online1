@@ -72,6 +72,18 @@ export function effectiveRole(member) {
   return 'MEMBER';
 }
 
+// The label to print wherever the UI would otherwise show a flat "MEMBER":
+// the member's exact office when they hold one, otherwise the access role, and
+// only "Member" for a member with neither. Presentation only — it never grants
+// or hides access, which stays with effectiveRole() / canAccessModule().
+export function roleLabel(member) {
+  const designation = String(member?.designation || '').trim();
+  if (designation) return designation;
+  const role = member?.role;
+  if (role && role !== 'MEMBER') return role;
+  return 'Member';
+}
+
 // True when the member's ADMIN comes from the designation rather than an
 // explicit set-role. Their admin access cannot be revoked by the role dropdown
 // — only by changing the designation — so the control is shown as fixed.

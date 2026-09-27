@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
 import { useTheme } from '../context/ThemeContext';
 import { resolveMedia } from '../api/client';
+import { roleLabel } from '../lib/permissions';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaBookOpen, FaShieldAlt, FaImages, FaSun, FaMoon, FaChevronDown, FaUser } from 'react-icons/fa';
 
@@ -149,7 +150,8 @@ export default function Navbar() {
                           {displayName}
                         </p>
                         <p className="truncate text-[11px] text-slate-500 dark:text-emerald-300/70">
-                          {isAdmin ? t('nav.adminPanel') : t('nav.member')} &middot; {user.role}
+                          {roleLabel(user)}
+                          {isAdmin ? ` · ${t('nav.adminPanel')}` : ''}
                         </p>
                       </div>
                     </div>

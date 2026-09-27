@@ -413,6 +413,25 @@ async function generateIdCardPdf(user) {
   doc.fillColor(emerald).text(idLabel, dx, dy + 0.85 * MM, { width: dWidth });
   dy += pillH + 1.5 * MM;
 
+  // Designation — green pill, mirroring the on-screen card. Only office-holders
+  // carry one, so an ordinary member's card is left unlabelled rather than
+  // stamped with a generic "Member".
+  const designation = cleanText(user.designation);
+  if (designation) {
+    doc.font('Helvetica-Bold').fontSize(5);
+    const gW = doc.widthOfString(designation) + 1.6 * MM;
+    const gH = 3.6 * MM;
+    if (gW <= dWidth) {
+      doc.roundedRect(dx - 0.8 * MM, dy, gW, gH, 0.9 * MM).fill(emerald);
+      doc.fillColor(gold).text(designation, dx, dy + 0.8 * MM, { width: dWidth });
+    } else {
+      // Free-text designations can be longer than the badge allows; fall back
+      // to a wrapped line so the exact wording is never cut off.
+      doc.fillColor(inkSoft).text(designation, dx, dy + 0.5 * MM, { width: dWidth });
+    }
+    dy += gH + 1.2 * MM;
+  }
+
   // Phone / Email / DOB rows
   const rows = [
     { label: 'Phone', value: user.phoneNumber || '' },

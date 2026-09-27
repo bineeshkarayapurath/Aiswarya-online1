@@ -162,7 +162,7 @@ function MemberSearchInput({ onSelect, clearKey }) {
                   <span className="block truncate text-sm font-bold text-slate-700">{m.fullName}</span>
                   <span className="text-xs text-slate-400">{m.membershipId} · {m.phoneNumber}</span>
                 </span>
-                <span className="text-[10px] font-bold text-emerald-700">MEMBER</span>
+                <span className="text-[10px] font-bold text-emerald-700">{m.designation || 'Member'}</span>
               </button>
             </li>
           ))}

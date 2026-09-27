@@ -10,6 +10,7 @@ import { StatusBadge } from '../components/StatusBadge';
 import CommitteeManagementPanel from '../components/CommitteeManagementPanel';
 import MemberReceipts from '../components/MemberReceipts';
 import { featureEnabled, subcommitteeEnabled, CLUB } from '../lib/club';
+import { roleLabel } from '../lib/permissions';
 import {
   FaFilePdf,
   FaIdCardAlt,
@@ -73,7 +74,7 @@ export default function MemberDashboard() {
   const rows = [
     ['Membership ID', m.membershipId],
     ['Full Name', m.fullName],
-    ['Role', m.role || 'MEMBER'],
+    [m.designation ? 'Designation' : 'Role', m.designation || roleLabel(m)],
     ['Phone', m.phoneNumber],
     ['Email', m.email || '—'],
     ['Date of Birth', m.dob?.slice(0, 10) || '—'],
@@ -121,11 +122,9 @@ export default function MemberDashboard() {
           </h1>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <StatusBadge status={m.status} />
-            {m.role && (
-              <span className="rounded-full bg-gold px-3 py-1 text-[11px] font-extrabold uppercase tracking-wide text-emerald-950">
-                {m.role}
-              </span>
-            )}
+            <span className="rounded-full bg-gold px-3 py-1 text-[11px] font-extrabold uppercase tracking-wide text-emerald-950">
+              {roleLabel(m)}
+            </span>
             {m.membershipId && (
               <span className="rounded-full bg-white/10 px-3 py-1 text-[11px] font-bold text-emerald-100">
                 {m.membershipId}

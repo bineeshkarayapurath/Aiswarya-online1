@@ -36,7 +36,7 @@ import CommunityServicePanel from '../components/CommunityServicePanel';
 import ExecutiveCommittee from '../components/ExecutiveCommittee';
 import ProgramApprovals from '../components/ProgramApprovals';
 import AssetsPanel from '../components/AssetsPanel';
-import { canAccessModule, effectiveRole, roleIsDesignationDerived } from '../lib/permissions';
+import { canAccessModule, effectiveRole, roleIsDesignationDerived, roleLabel } from '../lib/permissions';
 import { moduleEnabled } from '../lib/club';
 import { uploadImages } from '../lib/uploadImages';
 import { useAuth } from '../context/AuthContext';
@@ -651,20 +651,33 @@ function ApprovedMembers() {
                   <td className="whitespace-nowrap px-5 py-3 text-slate-500">
                     {m.phoneNumber ? `+91 ${m.phoneNumber}` : '—'}
                   </td>
-                  <td className="whitespace-nowrap px-5 py-3 text-slate-500">{m.designation || 'General Member'}</td>
+                  <td className="whitespace-nowrap px-5 py-3 text-slate-500">{m.designation || 'Member'}</td>
                   <td className="whitespace-nowrap px-5 py-3">
-                    <span
-                      className={`rounded-full px-2.5 py-0.5 text-[11px] font-extrabold uppercase tracking-wide ${
-                        effectiveRole(m) === 'ADMIN' ? 'bg-emerald-900 text-white' : 'bg-slate-100 text-slate-600'
-                      }`}
-                      title={
-                        roleIsDesignationDerived(m)
-                          ? 'Admin access granted by designation'
-                          : undefined
-                      }
-                    >
-                      {effectiveRole(m)}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-[11px] font-extrabold uppercase tracking-wide ${
+                          effectiveRole(m) === 'ADMIN' ? 'bg-emerald-900 text-white' : 'bg-slate-100 text-slate-600'
+                        }`}
+                        title={
+                          roleIsDesignationDerived(m)
+                            ? 'Admin access granted by designation'
+                            : undefined
+                        }
+                      >
+                        {roleLabel(m)}
+                      </span>
+                      {/* Admin capacity is called out separately so an officer is
+                          never reduced to a bare "Member" row. Suppressed when the
+                          pill already reads ADMIN, to avoid "ADMIN Admin". */}
+                      {effectiveRole(m) === 'ADMIN' && roleLabel(m) !== effectiveRole(m) && (
+                        <span
+                          className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-emerald-900"
+                          title="Has admin access"
+                        >
+                          Admin
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="whitespace-nowrap px-5 py-3"><StatusBadge status={m.status} /></td>
                   <td className="whitespace-nowrap px-5 py-3">

@@ -211,7 +211,7 @@ export default function ExecutiveCommittee() {
                       </div>
                       <div className="shrink-0 text-right">
                         <p className="text-[11px] font-extrabold text-gold">{m.membershipId}</p>
-                        <p className="text-[10px] text-slate-400">{m.designation || 'General Member'}</p>
+                        <p className="text-[10px] text-slate-400">{m.designation || 'Member'}</p>
                       </div>
                     </button>
                   </li>
@@ -247,7 +247,7 @@ export default function ExecutiveCommittee() {
                   <div className="mt-2 flex items-center gap-2">
                     <StatusBadge status={selected.status} />
                     <span className="rounded-full bg-emerald-900 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-white">
-                      {selected.designation || 'General Member'}
+                      {selected.designation || 'Member'}
                     </span>
                   </div>
                 </div>

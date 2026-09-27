@@ -134,6 +134,13 @@ function FrontFace({ user, qrValue }) {
           <span className="inline-flex w-fit items-center rounded-full bg-gold px-2.5 py-[2px] text-[10.5px] font-extrabold tracking-wide text-emerald-950 shadow-sm">
             {user.membershipId || '—'}
           </span>
+          {/* Only office-holders carry a designation, so the chip is omitted
+              entirely for ordinary members rather than showing a flat "Member". */}
+          {user.designation && (
+            <span className="inline-flex w-fit items-center rounded-full bg-emerald-900 px-2.5 py-[2px] text-[10.5px] font-extrabold tracking-wide text-gold-300 shadow-sm">
+              {user.designation}
+            </span>
+          )}
           <DetailRow label="DOB" value={formatDob(user.dob)} />
           <DetailRow label="Phone" value={user.phoneNumber} />
           <DetailRow label="Email" value={user.email} />

@@ -39,12 +39,18 @@ exports.searchMembers = async (req, res) => {
       filter.$or = [{ membershipId: rx }, { phoneNumber: rx }, { fullName: rx }];
     }
     const users = await User.find(filter)
-      .select('membershipId fullName phoneNumber')
+      .select('membershipId fullName phoneNumber designation')
       .limit(15)
       .sort({ membershipId: 1 });
     const members = users
       .filter((u) => u.membershipId)
-      .map((u) => ({ membershipId: u.membershipId, fullName: u.fullName, phoneNumber: u.phoneNumber }));
+      .map((u) => ({
+        membershipId: u.membershipId,
+        fullName: u.fullName,
+        phoneNumber: u.phoneNumber,
+        // Lets the client label the pick an officer by office, not "MEMBER".
+        designation: u.designation || '',
+      }));
     return res.json({ members });
   } catch (err) {
     return res.status(500).json({ message: err.message });
