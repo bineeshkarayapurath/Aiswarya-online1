@@ -5,6 +5,7 @@ import { CLUB } from '../lib/club';
 import clubConfig from '../config/clubConfig';
 import { FaIdCard } from 'react-icons/fa';
 import { resolveMedia } from '../api/client';
+import useClubSignatures from '../lib/useClubSignatures';
 
 const RULES = [
   '1. Present this card upon entry to the library.',
@@ -158,7 +159,22 @@ function DetailRow({ label, value }) {
   );
 }
 
+function SignatureRule({ url }) {
+  if (!url) return <div className="h-[26px] w-full border-b border-gold" />;
+  return (
+    <div className="flex h-[26px] w-full items-end justify-center border-b border-gold">
+      <img
+        src={url}
+        alt="Authorised Signature"
+        className="max-h-[24px] w-auto max-w-full object-contain object-bottom"
+      />
+    </div>
+  );
+}
+
 function BackFace({ user }) {
+  const { secretarySignatureUrl } = useClubSignatures();
+
   return (
     <div className="flex h-full w-full flex-col bg-gradient-to-br from-[var(--pdf-cardCream1)] to-[var(--pdf-cardCream2)]">
       <div className="flex h-[30px] items-center justify-center border-b-[3px] border-gold bg-emerald-900">
@@ -185,13 +201,17 @@ function BackFace({ user }) {
       <div className="border-t border-gold px-4 py-1.5 text-[8.5px] text-slate-700">
         <p className="mb-1 text-[9px]">Issued: {user.approvedAt?.slice(0, 10) || '—'}</p>
         <div className="flex items-end justify-between">
-          <div>
-            <div className="mb-0.5 h-2 border-b border-gold" />
-            <p className="text-center text-[9px] font-bold text-slate-600">Authorised Signature</p>
+          <div className="flex w-[47%] flex-col items-center">
+            {/* The club's stored Secretary signature, resting on the rule. With
+                none configured the rule stays blank, as before. */}
+            <SignatureRule url={secretarySignatureUrl} />
+            <p className="mt-0.5 text-center text-[9px] font-bold text-slate-600">
+              Authorised Signature
+            </p>
           </div>
-          <div>
-            <div className="mb-0.5 h-2 border-b border-gold" />
-            <p className="text-center text-[9px] font-bold text-slate-600">Secretary</p>
+          <div className="flex w-[22%] flex-col items-center">
+            <div className="h-[26px] w-full border-b border-gold" />
+            <p className="mt-0.5 text-center text-[9px] font-bold text-slate-600">Secretary</p>
           </div>
         </div>
       </div>

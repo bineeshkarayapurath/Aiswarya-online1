@@ -34,6 +34,10 @@ const router = express.Router();
 router.get('/public/stats', pub.stats);
 router.get('/public/catalog', pub.catalog);
 router.get('/public/settings', settings.getSettings);
+// Officer signature images — any signed-in member, since they are printed on the
+// ID cards members can download. Deliberately separate from /public/settings so
+// the signatures are not exposed to anonymous visitors.
+router.get('/settings/signatures', requireAuth, settings.getSignatures);
 router.get('/public/gallery', gallery.listPublicAlbums);
 
 // Generic image upload (multipart, field "photos"). Public by design so new

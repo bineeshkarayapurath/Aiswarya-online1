@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const config = require('../config/constants');
 const { pdfDir, qrDir } = require('../utils/storage');
+const { drawSignature, getClubSignatures } = require('./signatureService');
 
 const MM = 72 / 25.4;
 
@@ -38,6 +39,68 @@ async function writeQrImage(payload, filename) {
   const file = path.join(qrDir(), filename);
   await QRCode.toFile(file, payload, { width: 260, margin: 1 });
   return file;
+}
+
+/**
+ * Officer signature block for the foot of an A4 document: the signature rests
+ * on a rule, with the officer's name and designation beneath it.
+ *
+ * `bottomY` is the y of the rule. The whole block is skipped when the post has
+ * no signature configured — a document must never carry a blank line that reads
+ * as a signature. When a signature is configured but the image cannot be read
+ * (dead ImgBB link), the name and rule are still printed rather than failing.
+ */
+async function officerSignatureBlock(doc, { url, name, designation }, { x, w, bottomY }) {
+  if (!url) return false;
+
+  const lineColor = config.CLUB.colors.primary900;
+  const grey = config.CLUB.colors.grey;
+  const imgH = 40;
+
+  await drawSignature(doc, url, { x: x + 8, y: bottomY - imgH, w: w - 16, h: imgH });
+
+  doc.moveTo(x, bottomY).lineTo(x + w, bottomY).lineWidth(0.75).strokeColor(lineColor).stroke();
+
+  const label = [name, designation].filter(Boolean).join(', ');
+  if (label) {
+    doc.font('Helvetica-Bold').fontSize(9).fillColor(lineColor).text(label, x, bottomY + 4, {
+      width: w,
+      align: 'center',
+    });
+  }
+  doc.font('Helvetica').fontSize(7.5).fillColor(grey).text('Authorised Signatory', x, bottomY + 16, {
+    width: w,
+    align: 'center',
+  });
+  return true;
+}
+
+// Officer signature blocks laid out across the foot of a document. When both the
+// President and the Secretary have a signature they sit side by side; a lone
+// signature gets the full block width on the right, where an approval signature
+// belongs. The layout is decided before anything is drawn — drawing first and
+// re-positioning afterwards would stamp the same signature onto the page twice.
+async function documentSignatureBlocks(doc, signatures) {
+  const W = doc.page.width;
+  const M = 46;
+  const ruleY = doc.page.height - M - 78;
+
+  const officers = [
+    { url: signatures.presidentSignatureUrl, name: signatures.presidentName, designation: 'President' },
+    { url: signatures.secretarySignatureUrl, name: signatures.secretaryName, designation: 'Secretary' },
+  ].filter((o) => o.url);
+
+  if (!officers.length) return;
+
+  if (officers.length === 1) {
+    const w = 220;
+    await officerSignatureBlock(doc, officers[0], { x: W - M - w, w, bottomY: ruleY });
+    return;
+  }
+
+  const w = 210;
+  await officerSignatureBlock(doc, officers[0], { x: M, w, bottomY: ruleY });
+  await officerSignatureBlock(doc, officers[1], { x: W - M - w, w, bottomY: ruleY });
 }
 
 /** ------------------------------------------------------------------ *
@@ -201,10 +264,14 @@ async function generateApplicationPdf(user, { approvedBy = '', approvedAt = null
   });
   doc.moveTo(M, stampY + 12).lineTo(stampX - 24, stampY + 12).lineWidth(0.5).strokeColor('#cbd5e1').stroke();
 
+  // ======================= OFFICER SIGNATURES =======================
+  // Club-configured President / Secretary signatures, appended above the footer.
+  await documentSignatureBlocks(doc, await getClubSignatures());
+
   // ======================= FOOTER (page 1, single page) =======================
   doc.font('Helvetica').fontSize(9).fillColor(grey);
   doc.text(
-    'This is a computer generated document and does not require a physical signature.',
+    'This is a computer generated document. Any signature shown is the club’s stored official signature.',
     M,
     pageBottom - 42,
     { width: W - M * 2, align: 'center', italic: true }
@@ -407,20 +474,33 @@ async function generateIdCardPdf(user) {
     ry += 3.2 * MM;
   });
 
-  doc.moveTo(3 * MM, 40 * MM).lineTo(CARD_W - 3 * MM, 40 * MM).lineWidth(0.5).strokeColor(gold).stroke();
+  // The rules block ends around 27mm, so the divider is pulled up to leave a
+  // generous band for the signature above the 48.5mm rule.
+  doc.moveTo(3 * MM, 36 * MM).lineTo(CARD_W - 3 * MM, 36 * MM).lineWidth(0.5).strokeColor(gold).stroke();
 
+  // Issued date (left) and member ID (right) share a single row
   doc.font('Helvetica').fontSize(5.4).fillColor(inkSoft);
-  doc.text(`Issued: ${formatDate(user.approvedAt)}`, 4 * MM, 41.2 * MM, { width: CARD_W - 8 * MM });
+  doc.text(`Issued: ${formatDate(user.approvedAt)}`, 3 * MM, 37.6 * MM, { width: 42 * MM });
+  doc.font('Helvetica-Bold').text(user.membershipId || '', CARD_W - 28 * MM, 37.6 * MM, {
+    width: 25 * MM,
+    align: 'right',
+  });
+
+  // ---- Secretary's signature ----
+  // The club's stored Secretary signature is printed directly on the rule. With
+  // no signature configured the rule simply stays empty, as it always has.
+  await drawSignature(doc, (await getClubSignatures()).secretarySignatureUrl, {
+    x: 5 * MM,
+    y: 41.3 * MM,
+    w: 43 * MM,
+    h: 6.5 * MM,
+  });
+
   doc.rect(3 * MM, 48.5 * MM, 47 * MM, 0.5 * MM).fillColor(gold).fill();
   doc.rect(CARD_W - 25 * MM, 48.5 * MM, 22 * MM, 0.5 * MM).fillColor(gold).fill();
-  doc.text('Authorised Signature', 3 * MM, 45 * MM, { width: 47 * MM, align: 'center' });
-  doc.text('Secretary', CARD_W - 25 * MM, 45 * MM, { width: 22 * MM, align: 'center' });
-  doc.text(
-    user.membershipId || '',
-    4 * MM,
-    50 * MM,
-    { width: CARD_W - 8 * MM, align: 'center' }
-  );
+  doc.font('Helvetica-Bold').fontSize(5).fillColor(inkSoft);
+  doc.text('Authorised Signature', 3 * MM, 49.2 * MM, { width: 47 * MM, align: 'center' });
+  doc.text('Secretary', CARD_W - 25 * MM, 49.2 * MM, { width: 22 * MM, align: 'center' });
 
   doc.end();
   await new Promise((resolve, reject) => {

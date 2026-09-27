@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import api, { resolveMedia } from '../api/client';
@@ -41,7 +41,8 @@ import { moduleEnabled } from '../lib/club';
 import { uploadImages } from '../lib/uploadImages';
 import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
-import { FaCheckCircle, FaTimesCircle, FaEdit, FaFilePdf, FaIdCardAlt, FaTrashAlt, FaHourglass, FaPhoneAlt, FaEnvelope, FaMapMarkerAlt, FaFacebook, FaInstagram, FaWhatsapp, FaYoutube, FaSave } from 'react-icons/fa';
+import { FaCheckCircle, FaTimesCircle, FaEdit, FaFilePdf, FaIdCardAlt, FaTrashAlt, FaHourglass, FaPhoneAlt, FaEnvelope, FaMapMarkerAlt, FaFacebook, FaInstagram, FaWhatsapp, FaYoutube, FaSave, FaSignature, FaUpload } from 'react-icons/fa';
+import { invalidateClubSignatures } from '../lib/useClubSignatures';
 
 const MODULES = [
   {
@@ -737,6 +738,20 @@ const SETTING_FIELDS = [
   { key: 'youtubeUrl', label: 'YouTube Channel Link', placeholder: 'https://youtube.com/@...', type: 'url', icon: FaYoutube },
 ];
 
+// Signature uploads feed the ID card back and every generated PDF/letterhead.
+const SIGNATURE_FIELDS = [
+  {
+    key: 'secretarySignatureUrl',
+    label: "Secretary's Signature",
+    hint: "Printed on the back of every member ID card, and on official PDFs and letterheads.",
+  },
+  {
+    key: 'presidentSignatureUrl',
+    label: "President's Signature",
+    hint: 'Added to official PDFs and letterheads alongside the Secretary.',
+  },
+];
+
 const EMPTY_SETTINGS = {
   phoneNumber: '',
   emailAddress: '',
@@ -745,7 +760,89 @@ const EMPTY_SETTINGS = {
   instagramUrl: '',
   whatsappUrl: '',
   youtubeUrl: '',
+  secretarySignatureUrl: '',
+  presidentSignatureUrl: '',
 };
+
+// Single signature slot: preview, replace, clear. Uploading uses the shared
+// /upload endpoint (local storage, or ImgBB when a key is configured); the URL
+// is only persisted when the form is saved.
+function SignatureField({ field, value, onChange }) {
+  const [busy, setBusy] = useState(false);
+  const inputRef = useRef(null);
+
+  const pick = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBusy(true);
+    try {
+      const [url] = await uploadImages([file]);
+      if (url) {
+        onChange(url);
+        toast.success(`${field.label} uploaded — remember to save`);
+      } else {
+        toast.error('Signature upload failed');
+      }
+    } catch {
+      toast.error('Signature upload failed');
+    } finally {
+      setBusy(false);
+      if (inputRef.current) inputRef.current.value = '';
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+      <label className="label flex items-center gap-1.5">
+        <FaSignature className="text-slate-400" /> {field.label}
+      </label>
+      <p className="mt-1 text-xs text-slate-500">{field.hint}</p>
+
+      <div className="mt-3 flex items-center gap-4">
+        <div className="flex h-20 w-full max-w-[15rem] items-end justify-center rounded-lg border border-dashed border-slate-300 bg-white p-2">
+          {value ? (
+            <img
+              src={resolveMedia(value)}
+              alt={field.label}
+              className="max-h-full w-auto max-w-full object-contain"
+            />
+          ) : (
+            <span className="text-[11px] font-medium text-slate-400">Not uploaded</span>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            disabled={busy}
+            className="btn-outline !py-2 text-xs"
+          >
+            <FaUpload className="mr-2" /> {busy ? 'Uploading...' : value ? 'Replace' : 'Upload'}
+          </button>
+          {value && (
+            <button
+              type="button"
+              onClick={() => onChange('')}
+              disabled={busy}
+              className="btn-outline !py-2 text-xs !text-red-600"
+            >
+              <FaTrashAlt className="mr-2" /> Remove
+            </button>
+          )}
+        </div>
+      </div>
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        className="hidden"
+        onChange={pick}
+      />
+    </div>
+  );
+}
 
 function SettingsPanel() {
   const { t } = useLocale();
@@ -754,9 +851,19 @@ function SettingsPanel() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    api
-      .get('/public/settings')
-      .then((res) => setForm({ ...EMPTY_SETTINGS, ...(res.data.settings || {}) }))
+    // Contact/social details are public; signature URLs come from their own
+    // authenticated endpoint so they are never served to anonymous visitors.
+    Promise.all([
+      api.get('/public/settings'),
+      api.get('/settings/signatures').catch(() => ({ data: {} })),
+    ])
+      .then(([social, sig]) =>
+        setForm({
+          ...EMPTY_SETTINGS,
+          ...(social.data.settings || {}),
+          ...(sig.data.signatures || {}),
+        })
+      )
       .catch((e) => toast.error(e.response?.data?.message || 'Failed to load settings'))
       .finally(() => setLoading(false));
   }, []);
@@ -766,7 +873,9 @@ function SettingsPanel() {
     try {
       const res = await api.put('/admin/settings', form);
       setForm({ ...EMPTY_SETTINGS, ...res.data.settings });
-      toast.success('Footer & social settings saved');
+      // Cards already on screen must pick up the new signature.
+      invalidateClubSignatures();
+      toast.success('Settings saved');
     } catch (e) {
       toast.error(e.response?.data?.message || 'Save failed');
     } finally {
@@ -778,6 +887,29 @@ function SettingsPanel() {
 
   return (
     <div className="space-y-5">
+      <div className="rounded-2xl border border-slate-200 bg-white p-6">
+        <h4 className="flex items-center gap-2 text-base font-extrabold text-emerald-900">
+          <FaSignature className="text-gold" /> Officer Signatures
+        </h4>
+        <p className="mt-1 text-sm text-slate-500">
+          Upload a transparent PNG of each officer’s signature. They are applied automatically
+          wherever an authorised signature is required — the Secretary’s appears on the back of
+          every digital ID card, and both are appended to official PDF documents and letterheads.
+          Uploading is not enough on its own: press Save Settings to store the new signature.
+        </p>
+
+        <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {SIGNATURE_FIELDS.map((field) => (
+            <SignatureField
+              key={field.key}
+              field={field}
+              value={form[field.key]}
+              onChange={(url) => setForm({ ...form, [field.key]: url })}
+            />
+          ))}
+        </div>
+      </div>
+
       <div className="rounded-2xl border border-slate-200 bg-white p-6">
         <h4 className="text-base font-extrabold text-emerald-900">{t('admin.footerSocial')}</h4>
         <p className="mt-1 text-sm text-slate-500">
@@ -801,12 +933,13 @@ function SettingsPanel() {
             </div>
           ))}
         </div>
+      </div>
 
-        <div className="mt-6 flex justify-end">
-          <button onClick={save} disabled={saving} className="btn-primary !py-2.5 text-sm">
-            <FaSave className="mr-2" /> {saving ? 'Saving...' : 'Save Settings'}
-          </button>
-        </div>
+      {/* One save action covers both cards above. */}
+      <div className="flex justify-end">
+        <button onClick={save} disabled={saving} className="btn-primary !py-2.5 text-sm">
+          <FaSave className="mr-2" /> {saving ? 'Saving...' : 'Save Settings'}
+        </button>
       </div>
     </div>
   );

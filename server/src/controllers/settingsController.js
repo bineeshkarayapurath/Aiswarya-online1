@@ -1,6 +1,8 @@
 const ClubSettings = require('../models/ClubSettings');
 
-const SETTING_FIELDS = [
+// Public contact & social details — safe to expose to anonymous visitors and
+// consumed by the website footer.
+const CONTACT_FIELDS = [
   'phoneNumber',
   'emailAddress',
   'mapsUrl',
@@ -10,11 +12,21 @@ const SETTING_FIELDS = [
   'youtubeUrl',
 ];
 
-function pickSettings(doc) {
-  if (!doc) return { phoneNumber: '', emailAddress: '', mapsUrl: '', facebookUrl: '', instagramUrl: '', whatsappUrl: '', youtubeUrl: '' };
-  const out = { phoneNumber: '', emailAddress: '', mapsUrl: '', facebookUrl: '', instagramUrl: '', whatsappUrl: '', youtubeUrl: '' };
-  SETTING_FIELDS.forEach((f) => {
-    out[f] = doc[f] || '';
+// Officer signature images. Served to any signed-in member (they appear on the
+// ID cards members may download) but kept out of the public settings payload.
+const SIGNATURE_FIELDS = ['secretarySignatureUrl', 'presidentSignatureUrl'];
+
+const SETTING_FIELDS = [...CONTACT_FIELDS, ...SIGNATURE_FIELDS];
+
+const EMPTY = CONTACT_FIELDS.concat(SIGNATURE_FIELDS).reduce((acc, f) => {
+  acc[f] = '';
+  return acc;
+}, {});
+
+function pickSettings(doc, fields = SETTING_FIELDS) {
+  const out = {};
+  fields.forEach((f) => {
+    out[f] = (doc && doc[f]) || '';
   });
   return out;
 }
@@ -31,13 +43,24 @@ async function getOrCreate() {
 exports.getSettings = async (req, res) => {
   try {
     const doc = await getOrCreate();
-    return res.json({ settings: pickSettings(doc) });
+    return res.json({ settings: pickSettings(doc, CONTACT_FIELDS) });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
 };
 
-// Admin: update contact & social links (persisted globally)
+// Authenticated: fetch only the officer signature URLs. The ID card front/back
+// needs the Secretary's signature, and the settings screen previews both.
+exports.getSignatures = async (req, res) => {
+  try {
+    const doc = await getOrCreate();
+    return res.json({ signatures: pickSettings(doc, SIGNATURE_FIELDS) });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+// Admin: update contact, social links and officer signatures (persisted globally)
 exports.updateSettings = async (req, res) => {
   try {
     const doc = await getOrCreate();
@@ -47,8 +70,14 @@ exports.updateSettings = async (req, res) => {
       }
     });
     await doc.save();
-    return res.json({ message: 'Settings saved', settings: pickSettings(doc) });
+    return res.json({
+      message: 'Settings saved',
+      settings: pickSettings(doc),
+      signatures: pickSettings(doc, SIGNATURE_FIELDS),
+    });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
 };
+
+module.exports.EMPTY_SETTINGS = EMPTY;

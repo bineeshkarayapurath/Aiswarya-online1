@@ -9,7 +9,7 @@ A full-stack membership + club administration platform for **Aiswarya Library & 
 | Frontend   | React 18, Vite, Tailwind CSS, Framer Motion, react-router    |
 | Backend    | Node.js, Express, Mongoose (MongoDB)                         |
 | Auth       | JWT + phone OTP (Fast2SMS), Firebase Phone Auth, master PIN  |
-| Documents  | PDFKit (application PDF + digital ID card)                   |
+| Documents  | PDFKit (application PDF + digital ID card, officer signatures) |
 | Media      | Local `storage/` (served via `/uploads/`) or ImgBB CDN       |
 | Images     | QR codes, svg/logo generator scripts                         |
 | Deploys    | Vercel (client), Render or similar (server), MongoDB Atlas   |
@@ -83,10 +83,27 @@ Uploaded photos may be stored as absolute CDN URLs (ImgBB / Firebase) or relativ
 | `GET  /api/admin/committee/executive`  | Executive committee roster + photos     |
 | `GET  /api/admin/committee/search`     | ID/name/phone autocomplete              |
 | `GET  /api/public/stats` / `settings`  | Landing stats + footer/social contact   |
+| `GET  /api/settings/signatures`         | Officer signature URLs (any member)     |
 
 Admin-only modules (each additionally gated by designation): programs & minutes, accounts &
 transfers, receipts & vouchers, community service & relief fund, gallery, book catalog (bulk
 XLSX), book issues, assets, sub-committee management, and system settings.
+
+### Officer signatures
+
+System Settings uploads a signature image for the President and the Secretary (same
+`POST /api/upload` endpoint as member photos — local storage, or ImgBB when `IMG_BB_API_KEY`
+is set). Once saved they are applied automatically, with no per-document step:
+
+- **ID cards** — the Secretary's signature is printed on the back of every digital ID card
+  (both the on-screen card and the downloadable PDF), resting on the "Authorised Signature" rule.
+- **PDFs / letterheads** — both configured signatures are appended as signatory blocks at the
+  foot of the application/letterhead PDF, captioned with the current officer's name.
+
+`server/src/services/signatureService.js` resolves a stored signature to something PDFKit can
+embed: local storage paths directly, remote (ImgBB) URLs downloaded once and cached under
+`storage/signatures/`. A document is never given a blank line where a signature is expected —
+if nothing is configured the block is simply omitted.
 
 ## Development
 
