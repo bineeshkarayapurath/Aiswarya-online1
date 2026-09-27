@@ -36,11 +36,26 @@ function emojiFor(category) {
   return '📚';
 }
 
+// "Total Approved Members" / "Active Members" is the club's member roll, so it
+// counts approved *members* — not authority logins.
+//
+// The previous filter also required role === 'MEMBER', which silently dropped
+// every approved officer: giving someone a designation (or a manual role) moves
+// them to ADMIN via syncDesignationRole, so a Treasurer or President vanished
+// from the total while still appearing in the Approved Members list. Approval
+// status alone decides membership, so the role must not.
+//
+// Requiring a membership ID is what separates real members from authority
+// login accounts, which adminLoginVerify auto-provisions with a phone number
+// as the name and no membership ID. approveRequest always allocates one, and
+// nextMembershipId() and the member pickers already use the same guard.
+const APPROVED_MEMBER_FILTER = {
+  status: config.STATUS.APPROVED,
+  membershipId: { $exists: true, $nin: ['', null] },
+};
+
 exports.stats = async (req, res) => {
-  const activeMembers = await User.countDocuments({
-    role: config.ROLES.MEMBER,
-    status: config.STATUS.APPROVED,
-  });
+  const activeMembers = await User.countDocuments(APPROVED_MEMBER_FILTER);
   const pending = await User.countDocuments({ status: config.STATUS.PENDING });
   const bookCount = await Book.countDocuments();
   res.json({
