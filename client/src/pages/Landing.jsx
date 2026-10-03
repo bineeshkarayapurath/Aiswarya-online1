@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import api from '../api/client';
 import { CLUB, featureEnabled } from '../lib/club';
-import useCachedResource, { publicCatalogKey } from '../lib/useCachedResource';
+import useCachedResource, { FEATURED_CATALOG_KEY, FEATURED_REFRESH_MS } from '../lib/useCachedResource';
 import {
   FaBookOpen,
   FaUsers,
@@ -25,17 +25,24 @@ const fadeUp = {
 export default function Landing() {
   const { t } = useLocale();
 
-  // All three home-page payloads are cached, so a reload paints real content
-  // straight away instead of holding the catalog spinner until the requests
-  // finish, and returning to "/" from another route needs no network at all.
+  // Stats and the gallery are stable, so they use the default long freshness
+  // window: cached content paints instantly and no request is made at all.
   const stats = useCachedResource('public/stats', () =>
     api.get('/public/stats').then((r) => r.data),
   );
-  const catalog = useCachedResource(publicCatalogKey('', 8), () =>
-    api.get('/public/catalog', { params: { limit: 8 } }).then((r) => r.data),
-  );
   const gallery = useCachedResource('public/gallery', () =>
     api.get('/public/gallery').then((r) => r.data.albums || []),
+  );
+
+  // The featured strip is meant to rotate, so it opts out of the long window:
+  // within FEATURED_REFRESH_MS it reuses what it has, then it revalidates in
+  // the background so the next visit shows a different set of books. The value
+  // stays on screen while that happens, so rotating never reintroduces a
+  // spinner.
+  const catalog = useCachedResource(
+    FEATURED_CATALOG_KEY,
+    () => api.get('/public/catalog', { params: { featured: 1 } }).then((r) => r.data),
+    { revalidateAfter: FEATURED_REFRESH_MS },
   );
 
   const statsData = stats.data;

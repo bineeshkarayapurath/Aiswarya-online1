@@ -129,9 +129,20 @@ export function invalidateCachedResource(prefix) {
   }
 }
 
-// One cache key for /public/catalog so the home page preview and the member
-// browse panel de-duplicate whenever they request the same shape.
-export const publicCatalogKey = (q = '', limit = 8) => `public/catalog?q=${q || ''}&limit=${limit}`;
+// One cache key per /public/catalog shape so the home page strip and the member
+// browse/search panel de-duplicate whenever they ask for the same thing.
+export const publicCatalogKey = (q = '', limit = 60) => `public/catalog?q=${q || ''}&limit=${limit}`;
+
+// The rotating home page strip is its own shape: it asks the server for a fresh
+// random sample rather than a fixed page, so it must NOT share a key with a
+// browse request or the two would fight over one cache entry.
+export const FEATURED_CATALOG_KEY = 'public/catalog?featured=1';
+
+// Matches the server's 'catalog:featured' TTL so the client and the API rotate
+// on roughly the same schedule. Slightly longer on the client, which lets a
+// visitor navigating back to the home page within the window avoid a request
+// without the strip visibly stalling.
+export const FEATURED_REFRESH_MS = 15 * 1000;
 
 /**
  * @param {string} key                   Stable cache key.

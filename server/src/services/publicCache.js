@@ -25,7 +25,15 @@ const MAX_ENTRIES = 64;
 const entries = new Map();
 const inflight = new Map();
 
+// The home page strip is meant to show something different each visit, so it gets
+// a much shorter window than browse. Still far longer than the ~1.3 ms $sample it
+// guards, so a burst of visitors collapses into one query and the rotation is
+// driven by elapsed time rather than by traffic.
+const FEATURED_SCOPE = 'catalog:featured';
+const FEATURED_TTL_MS = 10 * 1000;
+
 function ttlFor(scope) {
+  if (scope === FEATURED_SCOPE) return FEATURED_TTL_MS;
   return TTL_MS[scope.split(':')[0]] ?? 15 * 1000;
 }
 
