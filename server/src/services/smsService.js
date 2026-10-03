@@ -18,12 +18,35 @@ function sanitizePhone(v) {
   return digits;
 }
 
-// Fast2SMS bills every 160-character page as a separate SMS, so a message that
-// spills past one page is charged twice per OTP.
-const SMS_PAGE_LENGTH = 160;
+// Fast2SMS debits one "SMS" per page, and the page size depends on the encoding
+// it infers for the text. Anything outside the GSM 03.38 basic alphabet is
+// classified as Unicode, where a page holds only 70 characters instead of 160.
+// These are Fast2SMS' own documented debit boundaries:
+//   English (GSM-7): 1 SMS up to 160 chars, 2 up to 306, 3 up to 459, ...
+//   Unicode:         1 SMS up to  70 chars, 2 up to 133, 3 up to 199, ...
+const GSM7_PAGE_LIMITS = [160, 306, 459, 612, 765];
+const UNICODE_PAGE_LIMITS = [70, 133, 199, 265, 331];
+
+// Printable ASCII plus the accented/Greek extras that still fit in GSM 03.38.
+// A character missing from this set (₹, curly quotes, en dash, emoji, ...) makes
+// the whole SMS Unicode, which both shrinks the page to 70 chars and is billed at
+// a higher per-SMS rate on most Indian gateways.
+const GSM7_BASIC = new RegExp(
+  '^[\\x20-\\x7E\\n\\r\\t@\\u00A3\\u00A5\\u00E8\\u00E9\\u00F9\\u00EC\\u00F2' +
+    '\\u00C7\\u00D8\\u00F8\\u00C5\\u00E5]*$'
+);
+
+function isGsm7(text) {
+  return GSM7_BASIC.test(String(text || ''));
+}
 
 function countSmsPages(text) {
-  return Math.max(1, Math.ceil(String(text || '').length / SMS_PAGE_LENGTH));
+  const len = String(text || '').length;
+  const limits = isGsm7(text) ? GSM7_PAGE_LIMITS : UNICODE_PAGE_LIMITS;
+  const index = limits.findIndex((max) => len <= max);
+  if (index !== -1) return index + 1;
+  const perPage = limits[1] - limits[0];
+  return limits.length + Math.ceil((len - limits[limits.length - 1]) / perPage);
 }
 
 // Fast2SMS routes, per the official API reference:
@@ -34,17 +57,54 @@ function countSmsPages(text) {
 // so neither is a cheaper substitute for 'q'.
 const SUPPORTED_ROUTES = ['q', 'dlt'];
 
+// Anything above this per-SMS rate means the send is being classified or billed
+// outside the standard tier and should be investigated.
+const EXPECTED_MAX_PER_SMS_RATE = 1;
+
 function buildOtpMessage(clubName, otp, minutes) {
-  // Must stay under SMS_PAGE_LENGTH or every OTP bills as 2 SMS.
-  const text = `Dear Member, your ${clubName} verification code is ${otp}. Valid for ${minutes} min. Do not share it. - Aiswarya Library`;
+  const text =
+    `Dear Member, your ${clubName} OTP is ${otp}. ` +
+    `Valid for ${minutes} min. Do not share it.`;
+
+  const gsm7 = isGsm7(text);
   const pages = countSmsPages(text);
+  if (!gsm7) {
+    const offenders = [...new Set(text.split(''))].filter((ch) => !GSM7_BASIC.test(ch));
+    console.warn(
+      `[SMS] OTP message contains non-GSM-7 characters (${JSON.stringify(offenders.join(''))}), ` +
+        'so Fast2SMS will treat it as Unicode (70 chars per page). Replace them with ASCII.'
+    );
+  }
   if (pages > 1) {
     console.warn(
-      `[SMS] OTP message is ${text.length} chars and will be billed as ${pages} SMS pages. ` +
-        `Trim the copy to stay under ${SMS_PAGE_LENGTH} chars to avoid paying ${pages}x per OTP.`
+      `[SMS] OTP message is ${text.length} chars and bills as ${pages} SMS pages ` +
+        `(${gsm7 ? 'English' : 'Unicode'}). Trim it to stay inside a single page.`
     );
   }
   return text;
+}
+
+// Fast2SMS has changed the shape of the sms_details block before, so read the
+// cost fields defensively and report whatever came back rather than assuming a
+// fixed structure.
+function summarizeDebit(data) {
+  if (!data || typeof data !== 'object') return null;
+  const parts = data.sms_details || data.details || {};
+  const pick = (...keys) => {
+    for (const k of keys) {
+      if (parts[k] !== undefined && parts[k] !== null) return parts[k];
+    }
+    return undefined;
+  };
+  const summary = {
+    request_id: data.request_id,
+    character_count: pick('character_count', 'characterCount'),
+    sms_count: pick('sms_count', 'smsCount'),
+    sms_language: pick('sms_language', 'smsLanguage'),
+    per_sms_rate: pick('per_sms_rate', 'perSmsRate'),
+    amount_debited: pick('amount_debited', 'amountDebited'),
+  };
+  return Object.values(summary).some((v) => v !== undefined) ? summary : null;
 }
 
 async function sendOtpViaFast2Sms(phone, otp) {
@@ -68,11 +128,15 @@ async function sendOtpViaFast2Sms(phone, otp) {
   const clubName = `${config.CLUB.name}, ${config.CLUB.place}`;
   const message = buildOtpMessage(clubName, otp, config.OTP_EXPIRY_MINUTES);
 
+  // Only the fields the Fast2SMS POST /dev/bulkV2 schema documents are sent:
+  // route, message, numbers, sms_details (+ sender_id/template_id on the DLT
+  // route). The legacy "language" and "flash" params are deliberately omitted —
+  // they are undocumented for this endpoint, and Fast2SMS infers English vs
+  // Unicode from the content, so passing them only risks mis-setting the
+  // encoding (Unicode shrinks the page to 70 chars and bills higher).
   const payload = {
     route,
     message,
-    language: 'english',
-    flash: 0,
     numbers,
     // Returns character_count / per_sms_rate / amount_debited so the real cost of
     // each OTP is visible in the server log instead of having to be inferred.
@@ -126,8 +190,25 @@ async function sendOtpViaFast2Sms(phone, otp) {
   }
 
   console.log(`[FAST2SMS-OK] ${route} route sent to ${numbers}: ${data.message || 'delivered'}`);
-  if (data.sms_details) {
-    console.log(`[FAST2SMS-COST] ${numbers}: ${JSON.stringify(data.sms_details)}`);
+
+  // Report exactly what was debited so an unexpected rate is visible in the log
+  // rather than only showing up later on the Fast2SMS invoice.
+  const debit = summarizeDebit(data);
+  if (debit) {
+    console.log(`[FAST2SMS-COST] ${numbers}: ${JSON.stringify(debit)}`);
+    const rate = Number(debit.per_sms_rate);
+    if (Number.isFinite(rate) && rate > EXPECTED_MAX_PER_SMS_RATE) {
+      console.warn(
+        `[FAST2SMS-HIGH-COST] per_sms_rate ${rate} exceeds the expected ≤${EXPECTED_MAX_PER_SMS_RATE} ` +
+          `for ${numbers} (message was ${debit.character_count ?? message.length} chars, ` +
+          `${debit.sms_language || (isGsm7(message) ? 'english' : 'unicode')}). ` +
+          'Check the Fast2SMS plan rate card and whether the sender ID is DLT-registered.'
+      );
+    }
+  } else {
+    console.log(
+      `[FAST2SMS-COST] ${numbers}: no sms_details returned for request_id ${data.request_id || 'n/a'}`
+    );
   }
   return data;
 }
@@ -170,7 +251,9 @@ async function sendOtpMessage(toPhone, otp) {
 module.exports = {
   generateOtp,
   sanitizePhone,
+  isGsm7,
   countSmsPages,
+  summarizeDebit,
   buildOtpMessage,
   sendOtpViaFast2Sms,
   sendOtpMessage,
