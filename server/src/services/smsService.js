@@ -18,13 +18,46 @@ function sanitizePhone(v) {
   return digits;
 }
 
+// Fast2SMS bills every 160-character page as a separate SMS, so a message that
+// spills past one page is charged twice per OTP.
+const SMS_PAGE_LENGTH = 160;
+
+function countSmsPages(text) {
+  return Math.max(1, Math.ceil(String(text || '').length / SMS_PAGE_LENGTH));
+}
+
+// Fast2SMS routes, per the official API reference:
+//   q  -> Quick SMS (bulkV2). Standard pay-per-SMS rate, no DLT needed.
+//   dlt-> Registered DLT template (needs FAST2SMS_SENDER_ID + TEMPLATE_ID).
+// 'v3' appears in pre-2021 tutorials but is not a current Fast2SMS route, and the
+// OTP API is a separate set of endpoints that requires a registered DLT template —
+// so neither is a cheaper substitute for 'q'.
+const SUPPORTED_ROUTES = ['q', 'dlt'];
+
 function buildOtpMessage(clubName, otp, minutes) {
-  return `Dear Member, your ${clubName} verification code is ${otp}. It is valid for ${minutes} minutes. Please do not share this code with anyone. - Aiswarya Library`;
+  // Must stay under SMS_PAGE_LENGTH or every OTP bills as 2 SMS.
+  const text = `Dear Member, your ${clubName} verification code is ${otp}. Valid for ${minutes} min. Do not share it. - Aiswarya Library`;
+  const pages = countSmsPages(text);
+  if (pages > 1) {
+    console.warn(
+      `[SMS] OTP message is ${text.length} chars and will be billed as ${pages} SMS pages. ` +
+        `Trim the copy to stay under ${SMS_PAGE_LENGTH} chars to avoid paying ${pages}x per OTP.`
+    );
+  }
+  return text;
 }
 
 async function sendOtpViaFast2Sms(phone, otp) {
   const endpoint = config.FAST2SMS.apiUrl || 'https://www.fast2sms.com/dev/bulkV2';
-  const route = config.FAST2SMS.route || 'q';
+  const configuredRoute = config.FAST2SMS.route || 'q';
+  let route = configuredRoute;
+  if (!SUPPORTED_ROUTES.includes(route)) {
+    console.warn(
+      `[FAST2SMS-WARN] Unsupported FAST2SMS_ROUTE "${route}" — falling back to "q" (Quick SMS). ` +
+        `Supported routes: ${SUPPORTED_ROUTES.join(', ')}.`
+    );
+    route = 'q';
+  }
   // Fast2SMS requires a clean 10-digit number; sanitize country-code prefixes.
   const numbers = sanitizePhone(phone);
   if (numbers.length !== 10) {
@@ -41,6 +74,9 @@ async function sendOtpViaFast2Sms(phone, otp) {
     language: 'english',
     flash: 0,
     numbers,
+    // Returns character_count / per_sms_rate / amount_debited so the real cost of
+    // each OTP is visible in the server log instead of having to be inferred.
+    sms_details: '1',
   };
   if (route === 'dlt') {
     payload.sender_id = config.FAST2SMS.senderId || 'AISWRY';
@@ -90,6 +126,9 @@ async function sendOtpViaFast2Sms(phone, otp) {
   }
 
   console.log(`[FAST2SMS-OK] ${route} route sent to ${numbers}: ${data.message || 'delivered'}`);
+  if (data.sms_details) {
+    console.log(`[FAST2SMS-COST] ${numbers}: ${JSON.stringify(data.sms_details)}`);
+  }
   return data;
 }
 
@@ -131,6 +170,7 @@ async function sendOtpMessage(toPhone, otp) {
 module.exports = {
   generateOtp,
   sanitizePhone,
+  countSmsPages,
   buildOtpMessage,
   sendOtpViaFast2Sms,
   sendOtpMessage,
