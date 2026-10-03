@@ -152,6 +152,42 @@ async function postToFast2Sms(endpoint, payload, numbers, label) {
   return data;
 }
 
+// Config problems are static for the process lifetime, so warn once each rather
+// than on every OTP send.
+const warned = new Set();
+function warnOnce(key, message) {
+  if (warned.has(key)) return;
+  warned.add(key);
+  console.warn(message);
+}
+
+// Report exactly what was debited so an unexpected rate is visible in the log
+// rather than only showing up later on the Fast2SMS invoice. Both bulkV2 routes
+// answer with sms_details when it is requested.
+function logDebit(numbers, data, context) {
+  const debit = summarizeDebit(data);
+  if (!debit) {
+    console.log(
+      `[FAST2SMS-COST] ${numbers}: no sms_details returned for request_id ${data.request_id || 'n/a'}`
+    );
+    return;
+  }
+
+  console.log(`[FAST2SMS-COST] ${numbers}: ${JSON.stringify(debit)}`);
+  const rate = Number(debit.per_sms_rate);
+  if (Number.isFinite(rate) && rate > EXPECTED_MAX_PER_SMS_RATE) {
+    const { message, senderId, templateId } = context || {};
+    const via = senderId
+      ? `sender ${senderId} / template ${templateId}`
+      : `message of ${debit.character_count ?? (message ? message.length : '?')} chars`;
+    console.warn(
+      `[FAST2SMS-HIGH-COST] per_sms_rate ${rate} exceeds the expected ≤${EXPECTED_MAX_PER_SMS_RATE} ` +
+        `for ${numbers} (${via}, ${debit.sms_language || 'language unknown'}). ` +
+        'Check the Fast2SMS plan rate card and whether the sender ID is DLT-registered.'
+    );
+  }
+}
+
 // Official OTP API: POST /dev/otp/send. Bills on the OTP rate card rather than
 // the quick-SMS tier, and the message text comes from the registered OTP
 // template, so it cannot drift over the per-page billing limits.
@@ -190,63 +226,82 @@ async function sendViaOtpApi(numbers, otp) {
   return data;
 }
 
+// DLT route on the same /dev/bulkV2 endpoint. Bills on the DLT/transactional
+// rate card, which is the compliant standard per-SMS rate.
+//
+// The DLT body is NOT the quick-SMS body with extra fields added:
+//   - `message` is the DLT **template id** (e.g. "111111"), not free text. The
+//     wording lives in the approved template.
+//   - `variables_values` carries the values for that template's {#var#}
+//     placeholders, pipe-separated.
+//   - There is no `template_id` field in the schema.
+// Requires a sender id and template registered in the Fast2SMS DLT Manager
+// first; Fast2SMS rejects unregistered headers outright.
+async function sendViaDlt(numbers, otp) {
+  const endpoint = config.FAST2SMS.apiUrl || 'https://www.fast2sms.com/dev/bulkV2';
+  const senderId = String(config.FAST2SMS.senderId || '').trim();
+  const templateId = String(config.FAST2SMS.templateId || '').trim();
+
+  // Fast2SMS documents the sender id as 3-6 letters; anything longer is
+  // rejected, so catch it here rather than as an opaque API error.
+  if (!/^[A-Za-z]{3,6}$/.test(senderId)) {
+    throw new Error(
+      `FAST2SMS_SENDER_ID must be a 3-6 letter DLT-approved sender id (got "${senderId}")`
+    );
+  }
+
+  // Values for the template's {#var#} placeholders. FAST2SMS_DLT_VARIABLES lets a
+  // multi-variable template be filled in template order; {otp} expands to the
+  // code we generated. With nothing configured the template's only variable is
+  // assumed to be the OTP.
+  const template = String(config.FAST2SMS.dltVariables || '').trim();
+  const variables = template ? template.split('{otp}').join(otp) : otp;
+
+  // `message` is typed as an integer in the schema, so send the numeric id.
+  const payload = {
+    route: 'dlt',
+    sender_id: senderId,
+    message: /^\d+$/.test(templateId) ? Number(templateId) : templateId,
+    variables_values: variables,
+    numbers,
+    sms_details: '1',
+  };
+
+  const data = await postToFast2Sms(endpoint, payload, numbers, 'dlt');
+
+  console.log(
+    `[FAST2SMS-OK] dlt route sent to ${numbers} via sender ${senderId} / template ${templateId}: ` +
+      `${data.message || 'delivered'}`
+  );
+
+  logDebit(numbers, data, { senderId, templateId });
+  return data;
+}
+
 async function sendViaQuickSms(numbers, otp) {
   const endpoint = config.FAST2SMS.apiUrl || 'https://www.fast2sms.com/dev/bulkV2';
-  const configuredRoute = config.FAST2SMS.route || 'q';
-  let route = configuredRoute;
-  if (!SUPPORTED_ROUTES.includes(route)) {
-    console.warn(
-      `[FAST2SMS-WARN] Unsupported FAST2SMS_ROUTE "${route}" — falling back to "q" (Quick SMS). ` +
-        `Supported routes: ${SUPPORTED_ROUTES.join(', ')}.`
-    );
-    route = 'q';
-  }
   const clubName = `${config.CLUB.name}, ${config.CLUB.place}`;
   const message = buildOtpMessage(clubName, otp, config.OTP_EXPIRY_MINUTES);
 
-  // Only the fields the Fast2SMS POST /dev/bulkV2 schema documents are sent:
-  // route, message, numbers, sms_details (+ sender_id/template_id on the DLT
-  // route). The legacy "language" and "flash" params are deliberately omitted —
-  // they are undocumented for this endpoint, and Fast2SMS infers English vs
-  // Unicode from the content, so passing them only risks mis-setting the
-  // encoding (Unicode shrinks the page to 70 chars and bills higher).
+  // Only the fields the Fast2SMS POST /dev/bulkV2 quick-SMS schema documents are
+  // sent: route, message, numbers, sms_details. The legacy "language" and
+  // "flash" params are deliberately omitted — they are undocumented for this
+  // endpoint, and Fast2SMS infers English vs Unicode from the content, so passing
+  // them only risks mis-setting the encoding (Unicode shrinks the page to 70
+  // chars and bills higher).
   const payload = {
-    route,
+    route: 'q',
     message,
     numbers,
     // Returns character_count / per_sms_rate / amount_debited so the real cost of
     // each OTP is visible in the server log instead of having to be inferred.
     sms_details: '1',
   };
-  if (route === 'dlt') {
-    payload.sender_id = config.FAST2SMS.senderId || 'AISWRY';
-    payload.variables_values = otp;
-    if (config.FAST2SMS.templateId) payload.template_id = config.FAST2SMS.templateId;
-  }
 
-  const data = await postToFast2Sms(endpoint, payload, numbers, route);
+  const data = await postToFast2Sms(endpoint, payload, numbers, 'q');
 
-  console.log(`[FAST2SMS-OK] ${route} route sent to ${numbers}: ${data.message || 'delivered'}`);
-
-  // Report exactly what was debited so an unexpected rate is visible in the log
-  // rather than only showing up later on the Fast2SMS invoice.
-  const debit = summarizeDebit(data);
-  if (debit) {
-    console.log(`[FAST2SMS-COST] ${numbers}: ${JSON.stringify(debit)}`);
-    const rate = Number(debit.per_sms_rate);
-    if (Number.isFinite(rate) && rate > EXPECTED_MAX_PER_SMS_RATE) {
-      console.warn(
-        `[FAST2SMS-HIGH-COST] per_sms_rate ${rate} exceeds the expected ≤${EXPECTED_MAX_PER_SMS_RATE} ` +
-          `for ${numbers} (message was ${debit.character_count ?? message.length} chars, ` +
-          `${debit.sms_language || (isGsm7(message) ? 'english' : 'unicode')}). ` +
-          'Check the Fast2SMS plan rate card and whether the sender ID is DLT-registered.'
-      );
-    }
-  } else {
-    console.log(
-      `[FAST2SMS-COST] ${numbers}: no sms_details returned for request_id ${data.request_id || 'n/a'}`
-    );
-  }
+  console.log(`[FAST2SMS-OK] q route sent to ${numbers}: ${data.message || 'delivered'}`);
+  logDebit(numbers, data, { message });
   return data;
 }
 
@@ -259,12 +314,33 @@ async function sendOtpViaFast2Sms(phone, otp) {
     );
   }
 
-  // Prefer the OTP API, which bills on the OTP rate card. It only works with a
-  // registered OTP template, so until FAST2SMS_OTP_ID is set the quick-SMS
-  // route is used instead of failing every send.
-  if (config.FAST2SMS.otpId) return sendViaOtpApi(numbers, otp);
+  // Transport preference: the DLT route when it is fully configured (it bills
+  // on the standard DLT rate card), then the OTP API, then quick SMS. The two
+  // preferred routes both need a template registered on the Fast2SMS account, so
+  // each falls through rather than failing the send when it is not set up.
+  if (config.FAST2SMS.route === 'dlt') {
+    const senderId = String(config.FAST2SMS.senderId || '').trim();
+    const templateId = String(config.FAST2SMS.templateId || '').trim();
+    if (senderId && templateId) return sendViaDlt(numbers, otp);
+    warnOnce(
+      'dlt',
+      '[FAST2SMS-WARN] FAST2SMS_ROUTE=dlt needs both FAST2SMS_SENDER_ID and ' +
+        'FAST2SMS_TEMPLATE_ID, and the header must be registered in the Fast2SMS ' +
+        `DLT Manager (dashboard -> DLT Manager). Missing: ` +
+        `${[!senderId && 'FAST2SMS_SENDER_ID', !templateId && 'FAST2SMS_TEMPLATE_ID'] .filter(Boolean).join(', ') || 'none'}. ` +
+        'Falling back until they are set.'
+    );
+  } else if (!SUPPORTED_ROUTES.includes(config.FAST2SMS.route)) {
+    warnOnce(
+      'route',
+      `[FAST2SMS-WARN] Unsupported FAST2SMS_ROUTE "${config.FAST2SMS.route}" ` +
+        `(supported: ${SUPPORTED_ROUTES.join(', ')}). Using the quick-SMS route.`
+    );
+  }
 
-  console.warn(
+  if (config.FAST2SMS.otpId) return sendViaOtpApi(numbers, otp);
+  warnOnce(
+    'otp',
     '[FAST2SMS-WARN] FAST2SMS_OTP_ID is not set, so the OTP API cannot be used ' +
       '(it requires a registered OTP template id) and the OTP is going through the ' +
       'quick-SMS route instead. Register an OTP template at ' +
@@ -316,6 +392,7 @@ module.exports = {
   summarizeDebit,
   buildOtpMessage,
   sendViaOtpApi,
+  sendViaDlt,
   sendViaQuickSms,
   sendOtpViaFast2Sms,
   sendOtpMessage,

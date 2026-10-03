@@ -58,9 +58,13 @@ module.exports = {
   FAST2SMS: {
     apiKey: process.env.FAST2SMS_API_KEY || '',
     apiUrl: process.env.FAST2SMS_API_URL || 'https://www.fast2sms.com/dev/bulkV2',
-    route: process.env.FAST2SMS_ROUTE || 'q',
+    route: process.env.FAST2SMS_ROUTE || 'dlt',
     senderId: process.env.FAST2SMS_SENDER_ID || 'AISWRY',
     templateId: process.env.FAST2SMS_TEMPLATE_ID || '',
+    // Values for the DLT template's {#var#} placeholders, pipe-separated and in
+    // template order. {otp} expands to the generated code. Leave empty when the
+    // template's only variable is the OTP.
+    dltVariables: process.env.FAST2SMS_DLT_VARIABLES || '',
     // Official OTP API (POST /dev/otp/send). Preferred over the quick-SMS route
     // because it bills on the OTP rate card. otpId is the registered OTP
     // template id; while it is empty the service falls back to quick SMS.
