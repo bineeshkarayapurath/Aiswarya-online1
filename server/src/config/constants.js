@@ -61,6 +61,13 @@ module.exports = {
     route: process.env.FAST2SMS_ROUTE || 'q',
     senderId: process.env.FAST2SMS_SENDER_ID || 'AISWRY',
     templateId: process.env.FAST2SMS_TEMPLATE_ID || '',
+    // Official OTP API (POST /dev/otp/send). Preferred over the quick-SMS route
+    // because it bills on the OTP rate card. otpId is the registered OTP
+    // template id; while it is empty the service falls back to quick SMS.
+    otpApiUrl: process.env.FAST2SMS_OTP_API_URL || 'https://www.fast2sms.com/dev/otp/send',
+    otpId: process.env.FAST2SMS_OTP_ID || '',
+    // Only for templates that declare {#var#} placeholders, pipe-separated.
+    otpVariables: process.env.FAST2SMS_OTP_VARIABLES || '',
   },
   // Optional free hosting for uploaded images (ImgBB). When empty, uploads are
   // kept on the server's local storage and served via /uploads/.

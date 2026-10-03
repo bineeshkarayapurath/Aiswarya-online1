@@ -107,7 +107,90 @@ function summarizeDebit(data) {
   return Object.values(summary).some((v) => v !== undefined) ? summary : null;
 }
 
-async function sendOtpViaFast2Sms(phone, otp) {
+// Shared request plumbing for both Fast2SMS transports.
+async function postToFast2Sms(endpoint, payload, numbers, label) {
+  let resp;
+  try {
+    resp = await axios.post(endpoint, payload, {
+      headers: {
+        authorization: config.FAST2SMS.apiKey,
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache',
+      },
+      timeout: 15000,
+    });
+  } catch (err) {
+    // axios throws for network errors and non-2xx HTTP statuses. Log the full
+    // response body (Fast2SMS sends useful "message" fields there).
+    const status = err.response ? `HTTP ${err.response.status}` : 'NETWORK';
+    const errText =
+      err.code || err.message || 'no error details supplied by the request layer';
+    if (err.response && err.response.data) {
+      console.error(
+        `[FAST2SMS-REQUEST-FAILED] ${label} ${status} for ${numbers}: ${err.response.data.message || err.response.data.error || errText}`
+      );
+      console.error(`[FAST2SMS-RESPONSE] ${JSON.stringify(err.response.data)}`);
+    } else {
+      console.error(`[FAST2SMS-REQUEST-FAILED] ${label} ${status} for ${numbers}: ${errText}`);
+    }
+    throw new Error(`Fast2SMS request failed (${label} ${status}): ${errText}`);
+  }
+
+  const data = resp.data;
+  // Always log the raw Fast2SMS payload so DLT / template / credit / quota
+  // errors are visible even when the HTTP call itself succeeds.
+  console.log(`[FAST2SMS-RAW] ${label} → ${numbers} HTTP ${resp.status}: ${JSON.stringify(data)}`);
+  if (!data || data.return === false) {
+    const msg =
+      (data && (data.message || data.error)) || 'unexpected response from Fast2SMS';
+    // Fast2SMS answers HTTP 200 even for business-level failures, so always log
+    // the returned payload to help diagnose quota/template/route problems.
+    console.error(`[FAST2SMS-API-FAILED] ${label}: ${msg} for ${numbers}`);
+    if (data) console.error(`[FAST2SMS-RESPONSE] ${JSON.stringify(data)}`);
+    throw new Error(`Fast2SMS API error: ${msg}`);
+  }
+  return data;
+}
+
+// Official OTP API: POST /dev/otp/send. Bills on the OTP rate card rather than
+// the quick-SMS tier, and the message text comes from the registered OTP
+// template, so it cannot drift over the per-page billing limits.
+//
+// `otp_id` is REQUIRED and must be an OTP template registered on the Fast2SMS
+// account (dashboard → Dev API → OTP Templates); without one Fast2SMS rejects
+// the send with 400 "Invalid OTP ID". This app supplies its own `otp` value, so
+// the code that arrives is the same one hashed into our Otp collection and
+// verification stays entirely server-side.
+async function sendViaOtpApi(numbers, otp) {
+  const endpoint =
+    config.FAST2SMS.otpApiUrl || 'https://www.fast2sms.com/dev/otp/send';
+  const otpId = String(config.FAST2SMS.otpId || '').trim();
+
+  const payload = {
+    mobile: numbers,
+    otp_id: otpId,
+    otp,
+    otp_length: config.OTP_DIGITS,
+    otp_expiry: config.OTP_EXPIRY_MINUTES,
+  };
+  // Only needed when the registered template declares {#var#} placeholders.
+  // Passed verbatim so the values can mirror the exact registered template.
+  const variables = String(config.FAST2SMS.otpVariables || '').trim();
+  if (variables) payload.variables_values = variables;
+
+  const data = await postToFast2Sms(endpoint, payload, numbers, 'otp-api');
+  console.log(`[FAST2SMS-OK] otp-api sent to ${numbers}: ${data.message || 'delivered'}`);
+  // The Send OTP response carries no cost block — amount_debited /
+  // per_sms_rate only arrive on the Fast2SMS delivery webhook, so there is
+  // nothing to reconcile here beyond the request id.
+  console.log(
+    `[FAST2SMS-COST] ${numbers}: not returned by Send OTP; see webhook amount_debited ` +
+      `for request_id ${data.request_id || 'n/a'}`
+  );
+  return data;
+}
+
+async function sendViaQuickSms(numbers, otp) {
   const endpoint = config.FAST2SMS.apiUrl || 'https://www.fast2sms.com/dev/bulkV2';
   const configuredRoute = config.FAST2SMS.route || 'q';
   let route = configuredRoute;
@@ -117,13 +200,6 @@ async function sendOtpViaFast2Sms(phone, otp) {
         `Supported routes: ${SUPPORTED_ROUTES.join(', ')}.`
     );
     route = 'q';
-  }
-  // Fast2SMS requires a clean 10-digit number; sanitize country-code prefixes.
-  const numbers = sanitizePhone(phone);
-  if (numbers.length !== 10) {
-    console.warn(
-      `[FAST2SMS-WARN] Non-10-digit input "${phone}" canonicalised to "${numbers}" – SMS may be rejected.`
-    );
   }
   const clubName = `${config.CLUB.name}, ${config.CLUB.place}`;
   const message = buildOtpMessage(clubName, otp, config.OTP_EXPIRY_MINUTES);
@@ -148,46 +224,7 @@ async function sendOtpViaFast2Sms(phone, otp) {
     if (config.FAST2SMS.templateId) payload.template_id = config.FAST2SMS.templateId;
   }
 
-  let resp;
-  try {
-    resp = await axios.post(endpoint, payload, {
-      headers: {
-        authorization: config.FAST2SMS.apiKey,
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-cache',
-      },
-      timeout: 15000,
-    });
-  } catch (err) {
-    // axios throws for network errors and non-2xx HTTP statuses. Log the full
-    // response body (Fast2SMS sends useful "message" fields there).
-    const status = err.response ? `HTTP ${err.response.status}` : 'NETWORK';
-    const errText =
-      err.code || err.message || 'no error details supplied by the request layer';
-    if (err.response && err.response.data) {
-      console.error(
-        `[FAST2SMS-REQUEST-FAILED] ${status} for ${numbers}: ${err.response.data.message || err.response.data.error || errText}`
-      );
-      console.error(`[FAST2SMS-RESPONSE] ${JSON.stringify(err.response.data)}`);
-    } else {
-      console.error(`[FAST2SMS-REQUEST-FAILED] ${status} for ${numbers}: ${errText}`);
-    }
-    throw new Error(`Fast2SMS request failed (${status}): ${errText}`);
-  }
-
-  const data = resp.data;
-  // Always log the raw Fast2SMS payload so DLT / template / credit / quota
-  // errors are visible even when the HTTP call itself succeeds.
-  console.log(`[FAST2SMS-RAW] ${route} → ${numbers} HTTP ${resp.status}: ${JSON.stringify(data)}`);
-  if (!data || data.return === false) {
-    const msg =
-      (data && (data.message || data.error)) || 'unexpected response from Fast2SMS';
-    // Fast2SMS answers HTTP 200 even for business-level failures, so always log
-    // the returned payload to help diagnose quota/template/route problems.
-    console.error(`[FAST2SMS-API-FAILED] ${msg} for ${numbers}`);
-    if (data) console.error(`[FAST2SMS-RESPONSE] ${JSON.stringify(data)}`);
-    throw new Error(`Fast2SMS API error: ${msg}`);
-  }
+  const data = await postToFast2Sms(endpoint, payload, numbers, route);
 
   console.log(`[FAST2SMS-OK] ${route} route sent to ${numbers}: ${data.message || 'delivered'}`);
 
@@ -211,6 +248,29 @@ async function sendOtpViaFast2Sms(phone, otp) {
     );
   }
   return data;
+}
+
+async function sendOtpViaFast2Sms(phone, otp) {
+  // Fast2SMS requires a clean 10-digit number; sanitize country-code prefixes.
+  const numbers = sanitizePhone(phone);
+  if (numbers.length !== 10) {
+    console.warn(
+      `[FAST2SMS-WARN] Non-10-digit input "${phone}" canonicalised to "${numbers}" – SMS may be rejected.`
+    );
+  }
+
+  // Prefer the OTP API, which bills on the OTP rate card. It only works with a
+  // registered OTP template, so until FAST2SMS_OTP_ID is set the quick-SMS
+  // route is used instead of failing every send.
+  if (config.FAST2SMS.otpId) return sendViaOtpApi(numbers, otp);
+
+  console.warn(
+    '[FAST2SMS-WARN] FAST2SMS_OTP_ID is not set, so the OTP API cannot be used ' +
+      '(it requires a registered OTP template id) and the OTP is going through the ' +
+      'quick-SMS route instead. Register an OTP template at ' +
+      'https://www.fast2sms.com/dashboard/dev-api and set FAST2SMS_OTP_ID to switch.'
+  );
+  return sendViaQuickSms(numbers, otp);
 }
 
 async function sendOtpMessage(toPhone, otp) {
@@ -255,6 +315,8 @@ module.exports = {
   countSmsPages,
   summarizeDebit,
   buildOtpMessage,
+  sendViaOtpApi,
+  sendViaQuickSms,
   sendOtpViaFast2Sms,
   sendOtpMessage,
 };
