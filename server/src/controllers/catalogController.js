@@ -1,5 +1,6 @@
 const XLSX = require('xlsx');
 const Book = require('../models/Book');
+const publicCache = require('../services/publicCache');
 
 // Accession numbers are normalised (trim + uppercase) so "a-012" and "A-012"
 // both resolve to the same unique record.
@@ -145,7 +146,9 @@ exports.listBooks = async (req, res) => {
         { callNumber: rx },
       ];
     }
-    const books = await Book.find(filter).sort({ stockNumber: 1 });
+    // Books are read-only projections for the UI, so lean() skips Mongoose
+    // document hydration — a measurable saving on a full catalog listing.
+    const books = await Book.find(filter).sort({ stockNumber: 1 }).lean();
     return res.json({ books, count: books.length });
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -176,6 +179,9 @@ exports.createBook = async (req, res) => {
       return res.status(400).json({ message: `Accession No ${book.stockNumber} is already in the catalog` });
     }
     const created = await Book.create(book);
+    // The public home page preview and /public/stats both read books, and are
+    // cached — drop them so a librarian adding a book is visible immediately.
+    publicCache.invalidate();
     return res.status(201).json({ message: 'Book added to catalog', book: created });
   } catch (err) {
     if (err.code === 11000) {
@@ -264,6 +270,9 @@ exports.bulkUpload = async (req, res) => {
 
     const skipped = parsed.length - added - invalid;
     const message = `Successfully added ${added} new books. ${skipped} duplicates skipped.`;
+    // A bulk import is usually dozens of rows; refresh the cached home page
+    // payloads once at the end rather than per row.
+    publicCache.invalidate();
     return res.json({
       message,
       added,
@@ -281,6 +290,7 @@ exports.deleteBook = async (req, res) => {
     const book = await Book.findById(req.params.id);
     if (!book) return res.status(404).json({ message: 'Book not found' });
     await Book.findByIdAndDelete(book._id);
+    publicCache.invalidate();
     return res.json({ message: 'Book removed from catalog' });
   } catch (err) {
     return res.status(500).json({ message: err.message });

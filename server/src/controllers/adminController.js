@@ -6,6 +6,7 @@ const Counter = require('../models/Counter');
 const { publicUrl } = require('../utils/storage');
 const { generateApplicationPdf, generateIdCardPdf } = require('../services/pdfService');
 const { syncDesignationRole, effectiveRole } = require('../services/roleService');
+const publicCache = require('../services/publicCache');
 
 // Compute the next membership ID (AISC-001, AISC-002, ...) from the number of
 // approved members so the sequence always continues from the last assigned ID.
@@ -188,6 +189,10 @@ exports.approveRequest = async (req, res) => {
     user.idCardPdfUrl = idCardPdfPath;
     await user.save();
 
+    // Approving moves an applicant from PENDING to APPROVED, which moves both
+    // counters on the home page stats strip — drop the cached copy.
+    publicCache.invalidate('stats');
+
     const userObj = user.toObject();
     delete userObj.lowerPhone;
 
@@ -212,6 +217,8 @@ exports.rejectRequest = async (req, res) => {
     user.status = config.STATUS.REJECTED;
     user.rejectionReason = reason || '';
     await user.save();
+    // Member counters on the home page stats strip are cached.
+    publicCache.invalidate('stats');
     return res.json({ message: 'Rejected' });
   } catch (err) {
     return res.status(500).json({ message: err.message });

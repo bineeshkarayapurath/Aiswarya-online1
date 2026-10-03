@@ -2,6 +2,7 @@ const config = require('../config/constants');
 const BookIssue = require('../models/BookIssue');
 const Book = require('../models/Book');
 const User = require('../models/User');
+const publicCache = require('../services/publicCache');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const ACTIVE_STATUSES = [config.ISSUE_STATUS.ISSUED, config.ISSUE_STATUS.OVERDUE];
@@ -162,6 +163,10 @@ exports.createIssue = async (req, res) => {
       fineAmount: 0,
     });
 
+    // The public catalog is cached and paints an "Issued" badge per book, so a
+    // new loan has to drop the cached home page payloads.
+    publicCache.invalidate('catalog');
+
     return res.status(201).json({ message: `Issued to ${member.fullName}`, issue });
   } catch (err) {
     if (err.code === 11000) {
@@ -186,6 +191,9 @@ exports.returnBook = async (req, res) => {
     issue.returnDate = returnDate;
     issue.fineAmount = days * config.FINE_PER_DAY;
     await issue.save();
+
+    // Returning a book flips it back to Available, so the cached catalog is stale.
+    publicCache.invalidate('catalog');
 
     res.json({
       message:

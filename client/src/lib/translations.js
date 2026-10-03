@@ -52,6 +52,7 @@ export const en = {
     popularBooks: 'Popular Books',
     membersBorrowFree: 'Members Borrow Free',
     loading: 'Loading catalog...',
+    empty: 'The catalog is being prepared',
   },
   events: {
     upcoming: 'Upcoming',
@@ -158,6 +159,7 @@ export const ml = {
     popularBooks: 'പ്രശസ്ത പുസ്തകങ്ങൾ',
     membersBorrowFree: 'അംഗങ്ങൾക്ക് സൗജന്യ വായന',
     loading: 'കാറ്റലോഗ് ലോഡ് ചെയ്യുന്നു...',
+    empty: 'കാറ്റലോഗ് തയ്യാറാക്കുന്നു',
   },
   events: {
     upcoming: 'വരുന്നത്',

@@ -66,6 +66,9 @@ const UserSchema = new mongoose.Schema({
     type: String,
     enum: ['PENDING_APPROVAL', 'APPROVED', 'REJECTED'],
     default: 'PENDING_APPROVAL',
+    // Not indexed on its own: the compound { status, membershipId } index at
+    // the bottom of this file serves status-only queries too, so a second index
+    // here would just add write cost. See the home page stats note there.
   },
 
   applicationPdfUrl: { type: String },
@@ -90,5 +93,11 @@ UserSchema.pre('save', function (next) {
   this.lowerPhone = (this.phoneNumber || '').replace(/\D/g, '');
   next();
 });
+
+// The home page stats strip counts APPROVED members and PENDING applications
+// on every load, and status was unindexed — both countDocuments calls scanned
+// the whole member roll. Leading with `status` serves the PENDING count on its
+// own; APPPROVED members additionally require a membershipId.
+UserSchema.index({ status: 1, membershipId: 1 });
 
 module.exports = mongoose.model('User', UserSchema);

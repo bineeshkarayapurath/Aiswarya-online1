@@ -9,6 +9,7 @@ import {
 import { BookMarked, BookX } from 'lucide-react';
 import api from '../api/client';
 import Spinner from '../components/Spinner';
+import useCachedResource, { publicCatalogKey } from '../lib/useCachedResource';
 
 function fmt(d) {
   if (!d) return '';
@@ -17,8 +18,6 @@ function fmt(d) {
 
 export default function PublicCatalog({ title = 'Library Book Catalog', limit = 60 }) {
   const [q, setQ] = useState('');
-  const [books, setBooks] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [debouncedQ, setDebouncedQ] = useState('');
 
   useEffect(() => {
@@ -26,19 +25,18 @@ export default function PublicCatalog({ title = 'Library Book Catalog', limit = 
     return () => clearTimeout(t);
   }, [q]);
 
-  const load = () => {
-    setLoading(true);
-    api
-      .get('/public/catalog', { params: { q: debouncedQ.trim() || undefined, limit } })
-      .then((res) => setBooks(res.data.books || []))
-      .catch(() => setBooks([]))
-      .finally(() => setLoading(false));
-  };
+  const term = debouncedQ.trim();
 
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedQ]);
+  // Results are cached per search term, so returning to a term the visitor has
+  // already typed renders instantly while the request revalidates in the
+  // background. `isLoading` is only true with nothing cached to show, which
+  // stops the panel flashing "Loading catalog..." on every revisit.
+  const catalog = useCachedResource(publicCatalogKey(term, limit), () =>
+    api
+      .get('/public/catalog', { params: { q: term || undefined, limit } })
+      .then((res) => res.data.books || []),
+  );
+  const books = catalog.data || [];
 
   return (
     <section className="space-y-4">
@@ -70,7 +68,7 @@ export default function PublicCatalog({ title = 'Library Book Catalog', limit = 
         )}
       </div>
 
-      {loading ? (
+      {catalog.isLoading ? (
         <Spinner label="Loading catalog..." />
       ) : books.length === 0 ? (
         <div className="card flex flex-col items-center gap-3 p-14 text-center">

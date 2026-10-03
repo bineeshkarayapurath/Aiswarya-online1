@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import api from '../api/client';
 import { CLUB, featureEnabled } from '../lib/club';
+import useCachedResource, { publicCatalogKey } from '../lib/useCachedResource';
 import {
   FaBookOpen,
   FaUsers,
@@ -24,24 +24,24 @@ const fadeUp = {
 
 export default function Landing() {
   const { t } = useLocale();
-  const [stats, setStats] = useState(null);
-  const [catalog, setCatalog] = useState({ books: [], events: [] });
-  const [albums, setAlbums] = useState([]);
 
-  useEffect(() => {
-    api
-      .get('/public/stats')
-      .then((r) => setStats(r.data))
-      .catch(() => {});
-    api
-      .get('/public/catalog')
-      .then((r) => setCatalog(r.data))
-      .catch(() => {});
-    api
-      .get('/public/gallery')
-      .then((r) => setAlbums(r.data.albums || []))
-      .catch(() => {});
-  }, []);
+  // All three home-page payloads are cached, so a reload paints real content
+  // straight away instead of holding the catalog spinner until the requests
+  // finish, and returning to "/" from another route needs no network at all.
+  const stats = useCachedResource('public/stats', () =>
+    api.get('/public/stats').then((r) => r.data),
+  );
+  const catalog = useCachedResource(publicCatalogKey('', 8), () =>
+    api.get('/public/catalog', { params: { limit: 8 } }).then((r) => r.data),
+  );
+  const gallery = useCachedResource('public/gallery', () =>
+    api.get('/public/gallery').then((r) => r.data.albums || []),
+  );
+
+  const statsData = stats.data;
+  const books = catalog.data?.books || [];
+  const events = catalog.data?.events || [];
+  const albums = gallery.data || [];
 
   return (
     <div className="overflow-hidden">
@@ -87,10 +87,10 @@ export default function Landing() {
       <section className="relative -mt-8 mx-auto max-w-7xl px-4">
         <div className="card grid grid-cols-2 gap-6 p-8 lg:grid-cols-4">
 {[
-            { icon: FaBookOpen, label: t('stats.booksInLibrary'), value: stats?.books ?? '...' },
-            { icon: FaUsers, label: t('stats.activeMembers'), value: stats?.activeMembers ?? '...' },
-            { icon: FaTrophy, label: t('stats.yearsOfService'), value: stats?.years ?? '...' },
-            { icon: FaCalendarAlt, label: t('stats.pendingApplications'), value: stats?.pendingApplications ?? '...' },
+            { icon: FaBookOpen, label: t('stats.booksInLibrary'), value: statsData?.books ?? '...' },
+            { icon: FaUsers, label: t('stats.activeMembers'), value: statsData?.activeMembers ?? '...' },
+            { icon: FaTrophy, label: t('stats.yearsOfService'), value: statsData?.years ?? '...' },
+            { icon: FaCalendarAlt, label: t('stats.pendingApplications'), value: statsData?.pendingApplications ?? '...' },
           ].map(({ icon: Icon, label, value }, i) => (
             <motion.div
               key={label}
@@ -125,11 +125,15 @@ export default function Landing() {
           </Link>
         </div>
 
-        {catalog.books.length === 0 ? (
+        {catalog.isLoading ? (
           <Spinner label={t('catalog.loading')} />
+        ) : books.length === 0 ? (
+          // Loaded, but the library has nothing to show yet. The spinner used to
+          // cover this case too, so an empty catalog looked like it was stuck.
+          <p className="text-sm text-slate-500 dark:text-emerald-200/60">{t('catalog.empty')}</p>
         ) : (
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {catalog.books.map((b, i) => (
+            {books.map((b, i) => (
               <motion.div
                 key={b.id}
                 layout
@@ -165,7 +169,7 @@ export default function Landing() {
             </h2>
           </div>
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            {catalog.events.map((e, i) => (
+            {events.map((e, i) => (
               <motion.div
                 key={e.id}
                 initial={{ opacity: 0, x: i % 2 ? 24 : -24 }}

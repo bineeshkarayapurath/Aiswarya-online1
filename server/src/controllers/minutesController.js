@@ -1,5 +1,6 @@
 const config = require('../config/constants');
 const ProgramMinutes = require('../models/ProgramMinutes');
+const publicCache = require('../services/publicCache');
 const { insertProgram, approveProgram, rejectProgram, queryPrograms, toView } = require('../services/programService');
 
 exports.listPrograms = async (req, res) => {
@@ -26,6 +27,9 @@ exports.getProgram = async (req, res) => {
 exports.approveProgram = async (req, res) => {
   try {
     const program = await approveProgram({ programId: req.params.id, approverId: req.user._id });
+    // Approved programs feed the home page events strip, which is served from
+    // the public cache.
+    publicCache.invalidate('catalog');
     return res.json({ message: 'Program approved and synced to main accounts', program });
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -40,6 +44,7 @@ exports.rejectProgram = async (req, res) => {
       return res.status(400).json({ message: 'Rejection reason/remarks are required' });
     }
     const program = await rejectProgram({ programId: req.params.id, reason });
+    publicCache.invalidate('catalog');
     return res.json({ message: 'Program rejected', program });
   } catch (err) {
     return res.status(500).json({ message: err.message });

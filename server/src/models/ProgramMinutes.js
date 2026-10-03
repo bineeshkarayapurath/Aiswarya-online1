@@ -44,4 +44,10 @@ const ProgramMinutesSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// The home page events strip always asks for APPROVED minutes, newest first, so
+// it filters on status AND sorts on date. The two single-field indexes above
+// cannot serve both at once; this compound one lets MongoDB answer from the
+// index without an in-memory sort.
+ProgramMinutesSchema.index({ status: 1, date: -1 });
+
 module.exports = mongoose.model('ProgramMinutes', ProgramMinutesSchema);

@@ -36,4 +36,12 @@ BookIssueSchema.index(
   }
 );
 
+// The partial unique index above only covers live loans, and the planner picks
+// it for the home page's small $in (8 accession numbers). It cannot serve the
+// other reads at all: a wide member browse (60 books), the status-only
+// "everything currently on loan" lookup, and the RETURNED history all fall
+// outside its partial filter. This compound index covers those with a plain
+// IXSCAN instead of a collection scan.
+BookIssueSchema.index({ status: 1, 'book.stockNumber': 1 });
+
 module.exports = mongoose.model('BookIssue', BookIssueSchema);
