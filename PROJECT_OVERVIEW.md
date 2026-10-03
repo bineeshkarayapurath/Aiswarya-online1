@@ -8,7 +8,7 @@ A full-stack membership + club administration platform for **Aiswarya Library & 
 |------------|--------------------------------------------------------------|
 | Frontend   | React 18, Vite, Tailwind CSS, Framer Motion, react-router    |
 | Backend    | Node.js, Express, Mongoose (MongoDB)                         |
-| Auth       | JWT + phone OTP (Fast2SMS), Firebase Phone Auth, master PIN  |
+| Auth       | JWT + phone OTP (WhatsApp Cloud API), Firebase Phone Auth, master PIN  |
 | Documents  | PDFKit (application PDF + digital ID card, officer signatures) |
 | Media      | Local `storage/` (served via `/uploads/`) or ImgBB CDN       |
 | Images     | QR codes, svg/logo generator scripts                         |
@@ -33,7 +33,7 @@ A full-stack membership + club administration platform for **Aiswarya Library & 
 │   │   ├── middleware/      # auth, multer uploads
 │   │   ├── models/          # Mongoose schemas
 │   │   ├── routes/index.js  # full API surface
-│   │   ├── services/        # SMS, PDF generation, storage utilities
+│   │   ├── services/        # WhatsApp OTP delivery, PDF generation, storage utilities
 │   │   └── utils/           # storage/publicUrl, imgbb
 │   └── server.js            # entry point (express app + static /uploads)
 └── scripts/                 # logo / data fix utilities
@@ -42,7 +42,7 @@ A full-stack membership + club administration platform for **Aiswarya Library & 
 ## Key Concepts
 
 - **Membership lifecycle** — `PENDING_APPROVAL → APPROVED / REJECTED`. Applications register
-  with photo + personal details, verify phone via OTP (SMS or Firebase), then an executive
+  with photo + personal details, verify phone via OTP (WhatsApp or Firebase), then an executive
   approves and a membership ID (`AISC-001`, …) and PDFs (application + digital ID card) are
   generated automatically.
 - **Roles** — `MEMBER`, `ADMIN`, `SUPER_ADMIN`. `ADMIN` gets full dashboard access.
@@ -124,20 +124,28 @@ npm run dev            # http://localhost:5173
 ### Environment
 
 - **server**: `.env` — `MONGO_URI`, `JWT_SECRET`, `PUBLIC_API_URL`, `CLIENT_URLS`,
-  `FAST2SMS_API_KEY`, `IMG_BB_API_KEY`, `MASTER_PIN`, `SUPER_ADMIN_PHONES`, and optionally
+  `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_TEMPLATE_NAME`,
+  `IMG_BB_API_KEY`, `MASTER_PIN`, `SUPER_ADMIN_PHONES`, and optionally
   `DEV_ECHO_OTP`. See `server/.env.example`.
 - **client**: `.env` — `VITE_API_BASE_URL` (`/api` in dev, absolute Render URL in production).
 
 ### Authentication
 
 There are no hardcoded test credentials, fixed OTPs, or backdoor accounts. Every code is
-generated per request by `generateOtp()`, stored as a bcrypt hash in the `Otp` collection,
-and verified against that record — so no fixed value can be typed in to bypass it. Authority
+generated per request by `generateOtp()` (`server/src/utils/otp.js`), stored as a bcrypt hash
+in the `Otp` collection, and verified against that record — so no fixed value can be typed in
+to bypass it. Authority
 login is authorised solely by `SUPER_ADMIN_PHONES` plus `MASTER_PIN`, both required from the
 environment; `server.js` refuses to boot in production if `JWT_SECRET`, `MASTER_PIN`,
-`SUPER_ADMIN_PHONES` or `FAST2SMS_API_KEY` are missing or left at their defaults.
+`SUPER_ADMIN_PHONES`, `WHATSAPP_ACCESS_TOKEN` or `WHATSAPP_PHONE_NUMBER_ID` are missing or
+left at their defaults.
 
-In local development the SMS gateway is skipped and the real generated code is written to the
-server console (`[DEV-MODE] OTP for <phone>: <code>`) — read it from there, or set
+Codes are delivered over Meta's WhatsApp Cloud API
+(`server/src/services/whatsappService.js`) using an approved AUTHENTICATION template —
+WhatsApp is an OTT service, so no TRAI DLT header is involved; the template is approved by
+Meta instead, which also means its wording is fixed by Meta rather than chosen per message.
+
+In local development the WhatsApp API is skipped and the real generated code is written to the
+server console (`[WHATSAPP-DEV] OTP for <phone>: <code>`) — read it from there, or set
 `DEV_ECHO_OTP=true` to have it returned in the API response so the UI can show it. That
 flag is ignored in production.

@@ -4,7 +4,8 @@ const config = require('../config/constants');
 const User = require('../models/User');
 const Otp = require('../models/Otp');
 const { signToken } = require('../middleware/auth');
-const { generateOtp, sendOtpMessage } = require('../services/smsService');
+const { generateOtp } = require('../utils/otp');
+const { sendWhatsAppOtp } = require('../services/whatsappService');
 const { syncDesignationRole } = require('../services/roleService');
 
 // Normalise a phone number so "9999999999", "919999999999", "+91 99999 99999"
@@ -36,7 +37,7 @@ async function verifyOtp(identifier, code) {
 
   // No fixed/test code is accepted here. The only way past this is a record in
   // the Otp collection whose bcrypt hash matches, created by a real
-  // generateOtp() + Fast2SMS delivery.
+  // generateOtp() + WhatsApp delivery.
   const otpDoc = await Otp.findOne({
     identifier,
     used: false,
@@ -81,14 +82,21 @@ exports.sendOtp = async (req, res) => {
     }
 
     const code = await createOtp(phone);
-    const result = await sendOtpMessage(phone, code);
+    const result = await sendWhatsAppOtp(phone, code);
 
     return res.json({
-      message: 'OTP sent',
+      message: 'OTP sent via WhatsApp',
       devOtp: result.devOtp || null,
     });
   } catch (err) {
-    return res.status(500).json({ message: err.message || 'Failed to send OTP' });
+    // A delivery failure is not an internal fault — it is usually a config or
+    // opt-in problem the user cannot act on. 502 tells the client the upstream
+    // provider failed, so the UI can offer "try again" rather than a generic
+    // server error, and the detail is already safe (no tokens, no OTP).
+    console.error(`[AUTH] WhatsApp OTP delivery failed for /api/auth/send-otp: ${err.message}`);
+    return res.status(502).json({
+      message: 'Could not send the WhatsApp message. Please try again shortly.',
+    });
   }
 };
 
@@ -240,15 +248,18 @@ exports.adminLoginSendOtp = async (req, res) => {
     const canonical = canonicalPhone(normalized);
     // Authority access is decided solely by SUPER_ADMIN_PHONES. There is no
     // test number and no code returned in the response — a real OTP is always
-    // generated and delivered through Fast2SMS.
+    // generated and delivered over WhatsApp.
     if (!SUPER_ADMIN_PHONES.includes(canonical)) {
       return res.status(403).json({ message: 'Unauthorised phone number' });
     }
     const code = await createOtp(normalized);
-    const result = await sendOtpMessage(normalized, code);
-    return res.json({ message: 'OTP sent', devOtp: result.devOtp || null });
+    const result = await sendWhatsAppOtp(normalized, code);
+    return res.json({ message: 'OTP sent via WhatsApp', devOtp: result.devOtp || null });
   } catch (err) {
-    return res.status(500).json({ message: err.message });
+    console.error(`[AUTH] WhatsApp OTP delivery failed for the Authority Zone: ${err.message}`);
+    return res.status(502).json({
+      message: 'Could not send the WhatsApp message. Please try again shortly.',
+    });
   }
 };
 

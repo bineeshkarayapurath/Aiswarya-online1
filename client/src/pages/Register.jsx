@@ -144,7 +144,9 @@ export default function Register() {
         identifier: normalizePhone(phone),
         code: otp,
       });
-      await submitApplication({ verified: true, via: 'sms', uid: '' });
+      // The OTP arrived over WhatsApp, not SMS — the backend stores this value
+      // and the dashboard renders a label from it.
+      await submitApplication({ verified: true, via: 'whatsapp', uid: '' });
     } catch (err) {
       toast.error(err.response?.data?.message || 'Verification / registration failed');
     }

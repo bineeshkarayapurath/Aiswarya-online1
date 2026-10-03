@@ -23,8 +23,11 @@ if (config.NODE_ENV === 'production') {
   if (!config.SUPER_ADMIN_PHONES.length) {
     problems.push('SUPER_ADMIN_PHONES must list at least one authority phone');
   }
-  if (!config.FAST2SMS.apiKey) {
-    problems.push('FAST2SMS_API_KEY must be set so OTPs can be delivered');
+  if (!config.WHATSAPP.accessToken) {
+    problems.push('WHATSAPP_ACCESS_TOKEN must be set so OTPs can be delivered');
+  }
+  if (!config.WHATSAPP.phoneNumberId) {
+    problems.push('WHATSAPP_PHONE_NUMBER_ID must be set so OTPs can be delivered');
   }
   if (problems.length) {
     console.error('[FATAL] Refusing to start with an incomplete production config:');
@@ -91,7 +94,7 @@ connectDB().then(() => {
     );
     console.log(`[CORS] Allowed origins: ${config.CLIENT_URLS.join(', ')}`);
     if (config.NODE_ENV !== 'production') {
-      console.log('[DEV MODE] SMS delivery disabled – read the OTP from this log.');
+      console.log('[DEV MODE] WhatsApp delivery disabled – read the OTP from this log.');
     }
   });
 });

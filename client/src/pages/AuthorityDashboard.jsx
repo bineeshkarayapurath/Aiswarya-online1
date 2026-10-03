@@ -1189,7 +1189,13 @@ function PhoneBadge({ verified, via }) {
     );
   }
   const label =
-    via === 'manual' ? 'Manual Verified' : via === 'firebase' || via === 'sms' ? 'SMS Verified' : 'OTP Verified';
+    via === 'manual'
+      ? 'Manual Verified'
+      : via === 'firebase' || via === 'sms'
+        ? 'SMS Verified'
+        : via === 'whatsapp'
+          ? 'WhatsApp Verified'
+          : 'OTP Verified';
   const tone =
     via === 'manual' ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700';
   return (

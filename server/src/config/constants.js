@@ -27,7 +27,7 @@ module.exports = {
   // so photos and PDFs load from the backend's separate production domain.
   PUBLIC_API_URL: process.env.PUBLIC_API_URL || '',
   // No test phone / test OTP exists. Every code is generated per request by
-  // smsService.generateOtp(), stored as a bcrypt hash, and verified against the
+  // otp.generateOtp(), stored as a bcrypt hash, and verified against the
   // database — there is no fixed value that can be typed in to bypass that.
   MONGO_URI:
     process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/aiswarya_library',
@@ -55,23 +55,25 @@ module.exports = {
   STORAGE_DIR: process.env.STORAGE_DIR || path.join(__dirname, '..', '..', 'storage'),
   OTP_EXPIRY_MINUTES: parseInt(process.env.OTP_EXPIRY_MINUTES || '5', 10),
   OTP_DIGITS: parseInt(process.env.OTP_DIGITS || '6', 10),
-  FAST2SMS: {
-    apiKey: process.env.FAST2SMS_API_KEY || '',
-    apiUrl: process.env.FAST2SMS_API_URL || 'https://www.fast2sms.com/dev/bulkV2',
-    route: process.env.FAST2SMS_ROUTE || 'dlt',
-    senderId: process.env.FAST2SMS_SENDER_ID || 'AISWRY',
-    templateId: process.env.FAST2SMS_TEMPLATE_ID || '',
-    // Values for the DLT template's {#var#} placeholders, pipe-separated and in
-    // template order. {otp} expands to the generated code. Leave empty when the
-    // template's only variable is the OTP.
-    dltVariables: process.env.FAST2SMS_DLT_VARIABLES || '',
-    // Official OTP API (POST /dev/otp/send). Preferred over the quick-SMS route
-    // because it bills on the OTP rate card. otpId is the registered OTP
-    // template id; while it is empty the service falls back to quick SMS.
-    otpApiUrl: process.env.FAST2SMS_OTP_API_URL || 'https://www.fast2sms.com/dev/otp/send',
-    otpId: process.env.FAST2SMS_OTP_ID || '',
-    // Only for templates that declare {#var#} placeholders, pipe-separated.
-    otpVariables: process.env.FAST2SMS_OTP_VARIABLES || '',
+  // OTP delivery over Meta's WhatsApp Cloud API. Unlike SMS, WhatsApp messages
+  // are billed per conversation and are NOT routed through a TRAI DLT header —
+  // the template is approved by Meta instead, under category AUTHENTICATION.
+  WHATSAPP: {
+    accessToken: process.env.WHATSAPP_ACCESS_TOKEN || '',
+    phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
+    templateName: process.env.WHATSAPP_TEMPLATE_NAME || 'login_otp_template',
+    // Must match the language the template was approved in, or Meta returns
+    // 132001. en_US is the default for templates created in the dashboard.
+    templateLanguage: process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'en_US',
+    // Templates with the one-tap autofill / "copy code" button need the OTP
+    // repeated as a button parameter. Set false for templates without it —
+    // sending a button parameter for a button-less template is rejected.
+    templateHasOtpButton:
+      String(process.env.WHATSAPP_TEMPLATE_HAS_OTP_BUTTON || 'true').toLowerCase() === 'true',
+    // Graph pins a version's behaviour for ~2 years, so this is worth bumping
+    // deliberately rather than riding v17.0 forever.
+    graphVersion: process.env.WHATSAPP_GRAPH_VERSION || 'v17.0',
+    timeoutMs: parseInt(process.env.WHATSAPP_TIMEOUT_MS || '10000', 10),
   },
   // Optional free hosting for uploaded images (ImgBB). When empty, uploads are
   // kept on the server's local storage and served via /uploads/.

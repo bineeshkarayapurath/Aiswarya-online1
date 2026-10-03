@@ -77,7 +77,7 @@ const UserSchema = new mongoose.Schema({
   approvedAt: { type: Date },
   rejectionReason: { type: String },
 
-  // Phone verification (SMS/OTP via Fast2SMS, Firebase Phone Auth, or a
+  // Phone verification (OTP via WhatsApp, Firebase Phone Auth, or a
     // club-office manual override).
   // default: undefined keeps firebaseUid OUT of the document until a real UID
   // exists, so the unique sparse index never collides on a '' placeholder and
