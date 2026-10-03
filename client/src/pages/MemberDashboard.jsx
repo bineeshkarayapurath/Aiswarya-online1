@@ -67,7 +67,24 @@ export default function MemberDashboard() {
       URL.revokeObjectURL(url);
       toast.success('Download started');
     } catch (e) {
-      toast.error(e.response?.data?.message || 'Download failed');
+      // responseType:'blob' means an error body arrives as a Blob, not an
+      // object, so e.response.data.message is always undefined and every
+      // failure collapsed into the same generic "Download failed". Read the
+      // blob to surface what the server actually said (e.g. "Document not
+      // generated yet", or a 401 from an expired token).
+      let message = '';
+      const body = e.response?.data;
+      if (body instanceof Blob) {
+        const text = await body.text();
+        try {
+          message = JSON.parse(text).message || text;
+        } catch {
+          message = text;
+        }
+      } else if (body?.message) {
+        message = body.message;
+      }
+      toast.error(message || 'Download failed');
     }
   };
 
