@@ -9,6 +9,7 @@ A full-stack membership + club administration platform for **Aiswarya Library & 
 | Frontend   | React 18, Vite, Tailwind CSS, Framer Motion, react-router    |
 | Backend    | Node.js, Express, Mongoose (MongoDB)                         |
 | Auth       | JWT + bcrypt password keyed by phone number                         |
+| Hardening  | express-rate-limit on the unauthenticated credential endpoints       |
 | Documents  | PDFKit (application PDF + digital ID card, officer signatures) |
 | Media      | Local `storage/` (served via `/uploads/`) or ImgBB CDN       |
 | Images     | QR codes, svg/logo generator scripts                         |
@@ -69,7 +70,7 @@ Uploaded photos may be stored as absolute CDN URLs (ImgBB) or relative paths
 |----------------------------------------|-----------------------------------------|
 | `POST /api/upload`                     | Generic image upload (local / ImgBB)    |
 | `POST /api/auth/register`              | Membership application (phone + password, + photo) |
-| `POST /api/auth/login`                 | Member login (phone or membership ID + password) |
+| `POST /api/auth/login`              | Member login (phone or membership ID + password; password may be blank for first-time setup) |
 | `POST /api/auth/set-password`          | First-login password setup for pre-password accounts |
 | `POST /api/auth/admin/login`           | Authority Zone login (officer phone + own password) |
 | `GET /api/auth/me`                     | Current authenticated user              |
@@ -153,6 +154,34 @@ already on record to match. That date of birth is a weak knowledge factor, but w
 email channel left it is the only thing separating a member from anyone who knows their phone
 number. Note that `needsPassword` necessarily reveals that a number *is* registered — accepted
 deliberately, since the alternative was locking every existing member out permanently.
+
+Because that member has no password to type, both login forms deliberately allow submitting with
+the password field empty, and `login` / `adminLogin` check for a missing password *only after*
+establishing that the account has one. A blank password against a real account still returns the
+same `401` as a wrong guess. (Requiring a password before the `hasPassword()` check is what made
+this flow unreachable in the first place: the form refused to submit, and a member who typed
+*anything* to get past it would have created a throwaway password instead.)
+
+The date-of-birth match compares calendar days with one day of slack, so a record written with a
+timezone offset (spreadsheet import, Atlas edit) does not lock its owner out permanently. A
+record with no date of birth on file is rejected with a message telling the member to contact the
+club office, since no date could ever satisfy the check.
+
+**Rate limiting.** `POST /auth/login`, `/auth/admin/login` and `/auth/set-password` share a
+per-IP limiter in `src/middleware/rateLimit.js`. It exists mainly because of `set-password`: that
+endpoint is guarded only by a date of birth, which is not a secret — it is printed on ID cards and
+receipts and shared in club WhatsApp groups — so without a limit, knowing a member's phone number
+would be enough to sweep their date of birth and set a password of your choosing.
+
+Only genuine failures count towards the limit (400 and 401). A correct sign-in is never throttled,
+however many times the member signs in, and 403 deliberately does not count either, because
+`/auth/login` returns 403 for "credentials are valid but the application is still pending" and a
+pending member must not be throttled for being pending. 15 failures per 15 minutes, then 429 with
+a `Retry-After` header. `server.js` sets `trust proxy` to 1 so the limiter sees the real client IP
+rather than the Render proxy's, which would otherwise throttle the whole club at once.
+
+Limiting is per-IP, so members sharing one wifi share a budget. The limit is set high enough that
+ordinary typos cannot exhaust it, but a determined attacker from a shared connection is bounded.
 
 **Authority Zone.** Officers sign in with the same phone + password as everyone else; what makes
 the session an authority session is the role, not a second secret. `POST /api/auth/admin/login`

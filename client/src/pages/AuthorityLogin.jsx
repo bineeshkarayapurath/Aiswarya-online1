@@ -40,8 +40,10 @@ export default function AuthorityLogin() {
     e.preventDefault();
     const p = normalizePhone(phone);
     if (p.length !== 10) return toast.error('Enter the authorised officer phone number');
-    if (!password) return toast.error('Enter your password');
 
+    // No password required on purpose. An officer appointed before password login
+    // has none to type, so requiring one here made the setup step unreachable and
+    // pushed them towards inventing a throwaway password. The server decides.
     setSubmitting(true);
     try {
       const res = await api.post('/auth/admin/login', { phone: p, password });
@@ -209,6 +211,7 @@ export default function AuthorityLogin() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
+                hint="Appointed before password login? Leave this blank and we'll set one up for you."
               />
 
               <button type="submit" disabled={submitting} className="btn-gold w-full">

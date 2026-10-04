@@ -167,8 +167,8 @@ function invalidCredentials(res) {
 exports.login = async (req, res) => {
   try {
     const { identifier, password } = req.body;
-    if (!identifier || !password) {
-      return res.status(400).json({ message: 'identifier and password are required' });
+    if (!identifier) {
+      return res.status(400).json({ message: 'identifier is required' });
     }
 
     const user = await findByIdentifier(identifier);
@@ -179,11 +179,21 @@ exports.login = async (req, res) => {
       // reveals that the number IS registered — accepted deliberately, because
       // the alternative was locking every pre-existing member out of their own
       // account with no way back.
+      //
+      // This check must come BEFORE any password requirement. A first-time member
+      // has no password to type, so demanding one here made the set-password step
+      // unreachable: the UI would refuse to submit, and a member who typed anything
+      // to get past it would create a throwaway password instead.
       return res.json({
         needsPassword: true,
         identifier: user.phoneNumber,
       });
     }
+
+    // Past this point the account really does have a password, so a blank one is
+    // just a failed login. Answer 401, not 400, so an empty field is
+    // indistinguishable from a wrong guess and leaks nothing extra.
+    if (!password) return invalidCredentials(res);
 
     const ok = await user.verifyPassword(password);
     if (!ok) return invalidCredentials(res);
@@ -246,20 +256,32 @@ exports.setPassword = async (req, res) => {
         .json({ message: 'A password is already set for this account' });
     }
 
-    // Ownership check. Compare only the calendar day, in UTC, so a timezone
-    // difference between the browser and the server cannot reject a correct date.
-    if (!dob || !existing.dob) {
+    // Ownership check. Compare calendar days only, so a timezone difference
+    // between the member's browser and the server cannot reject a correct date.
+    if (!dob) {
       return res.status(400).json({ message: 'Date of birth is required' });
     }
     const claimed = new Date(dob);
     if (Number.isNaN(claimed.getTime())) {
       return res.status(400).json({ message: 'Date of birth is invalid' });
     }
-    const sameDay = (a, b) =>
-      a.getUTCFullYear() === b.getUTCFullYear() &&
-      a.getUTCMonth() === b.getUTCMonth() &&
-      a.getUTCDate() === b.getUTCDate();
-    if (!sameDay(claimed, existing.dob)) {
+    // A record with no date of birth on file can never satisfy this check, so
+    // say who has to fix it instead of leaving the member guessing.
+    if (!existing.dob || Number.isNaN(new Date(existing.dob).getTime())) {
+      return res.status(400).json({
+        message:
+          'Our records have no date of birth for this number. Please contact the club office to have it corrected.',
+      });
+    }
+
+    // Allow one day of slack. Dates written with a timezone offset (as a
+    // spreadsheet import or an Atlas edit can) land on the previous UTC day, which
+    // would otherwise lock the member out of their own account permanently.
+    // One day is negligible next to the strength of this factor.
+    const dayIndex = (d) => Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+    const daysApart =
+      Math.abs(dayIndex(claimed) - dayIndex(new Date(existing.dob))) / 86400000;
+    if (daysApart > 1) {
       return res.status(401).json({
         message: 'Date of birth does not match our records',
       });
@@ -295,8 +317,8 @@ exports.setPassword = async (req, res) => {
 exports.adminLogin = async (req, res) => {
   try {
     const { phone, password } = req.body;
-    if (!phone || !password) {
-      return res.status(400).json({ message: 'phone and password are required' });
+    if (!phone) {
+      return res.status(400).json({ message: 'phone is required' });
     }
 
     const canonical = canonicalPhone(phone);
@@ -319,8 +341,12 @@ exports.adminLogin = async (req, res) => {
       });
     }
     if (!user.hasPassword()) {
+      // As in member login: reach this branch without a password, because a
+      // designated officer who predates the password system has none to type.
       return res.json({ needsPassword: true, identifier: user.phoneNumber });
     }
+
+    if (!password) return invalidCredentials(res);
 
     const ok = await user.verifyPassword(password);
     if (!ok) return invalidCredentials(res);

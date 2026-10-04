@@ -32,6 +32,13 @@ fs.mkdirSync(path.join(config.STORAGE_DIR, 'photos'), { recursive: true });
 fs.mkdirSync(path.join(config.STORAGE_DIR, 'pdfs'), { recursive: true });
 fs.mkdirSync(path.join(config.STORAGE_DIR, 'qr'), { recursive: true });
 
+// Trust exactly one proxy hop. In production the app sits behind Render's proxy,
+// so without this every request would appear to come from the proxy's own IP and
+// per-IP rate limiting would throttle the whole club at once - one member's
+// mistyped password locking out everyone in the hall. Exactly one hop, so a
+// client cannot forge X-Forwarded-For to slip the limiter.
+app.set('trust proxy', 1);
+
 // Explicit CORS middleware: reflect the request origin when it matches an
 // allowed frontend domain (Vercel production + local dev), set the CORS
 // headers, and answer OPTIONS preflight requests with HTTP 204 so browsers can

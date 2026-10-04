@@ -57,8 +57,12 @@ export default function MemberLogin() {
       return toast.error('Enter a valid 10-digit mobile number');
     }
     if (isMemberId && id.length < 8) return toast.error('Enter a valid membership ID');
-    if (!password) return toast.error('Enter your password');
 
+    // No password required here on purpose. A member who predates the password
+    // system has nothing to type, so blocking on an empty field meant they could
+    // never reach the set-password step and would invent a throwaway password.
+    // The server decides: a passwordless account is offered setup, and an account
+    // that does have one simply rejects the attempt.
     setSubmitting(true);
     try {
       const res = await api.post('/auth/login', { identifier: id, password });
@@ -66,7 +70,10 @@ export default function MemberLogin() {
       // The account exists but has never had a password. Send the member into the
       // set-password step rather than reporting a wrong password.
       if (res.data.needsPassword) {
+        // The server hands back the canonical phone number, so from here on this
+        // is a phone-number flow even if the member signed in by Membership ID.
         setIdentifier(res.data.identifier || id);
+        setIsMemberId(false);
         setNeedsPassword(true);
         return;
       }
@@ -271,6 +278,7 @@ export default function MemberLogin() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
+                hint="Joining before password login? Leave this blank and we'll set one up for you."
               />
 
               <button type="submit" disabled={submitting} className="btn-primary w-full">

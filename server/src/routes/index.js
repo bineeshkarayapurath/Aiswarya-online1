@@ -2,6 +2,7 @@ const express = require('express');
 const upload = require('../middleware/upload');
 const { galleryUpload } = upload;
 const { requireAuth, requireSuperAdmin, requireMember, requireDesignations, requireOfficerOrAdmin } = require('../middleware/auth');
+const { authLimiter } = require('../middleware/rateLimit');
 const auth = require('../controllers/authController');
 const admin = require('../controllers/adminController');
 const member = require('../controllers/memberController');
@@ -47,16 +48,18 @@ router.get('/public/gallery', gallery.listPublicAlbums);
 router.post('/upload', galleryUpload.array('photos', 20), uploadCtrl.uploadPhotos);
 
 // Auth — phone number + bcrypt password. No OTP / SMS delivery anywhere.
+// authLimiter counts only failed attempts, so a correct sign-in is never
+// throttled while a sweep against set-password's date-of-birth check is.
 router.post('/auth/register', upload.single('photo'), auth.register);
-router.post('/auth/login', auth.login);
+router.post('/auth/login', authLimiter, auth.login);
 // First-login password setup for accounts that predate the password field.
 // Only ever sets a FIRST password; it can never overwrite an existing one.
-router.post('/auth/set-password', auth.setPassword);
+router.post('/auth/set-password', authLimiter, auth.setPassword);
 router.get('/auth/me', requireAuth, auth.getMe);
 
 // Authority zone — same phone + password credential, gated on the account
 // actually holding an authority role (see authController.adminLogin).
-router.post('/auth/admin/login', auth.adminLogin);
+router.post('/auth/admin/login', authLimiter, auth.adminLogin);
 
 // Admin panel — Approval workflows & committee management (executive roles)
 router.post(
