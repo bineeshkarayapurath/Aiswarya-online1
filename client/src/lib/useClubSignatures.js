@@ -32,6 +32,13 @@ export function invalidateClubSignatures() {
   inflight = null;
 }
 
+// Resolves as soon as the signatures are known. The receipt PDF is captured from an
+// off-screen React root, so it has to wait for this instead of rendering without the
+// signature on the first pass.
+export function clubSignaturesReady() {
+  return load();
+}
+
 export default function useClubSignatures() {
   const [signatures, setSignatures] = useState(cache || {});
 

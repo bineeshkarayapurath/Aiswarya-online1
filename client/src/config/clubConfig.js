@@ -35,11 +35,14 @@ export const clubConfig = {
     regNo: '12 BTY 6652',
     establishedYear: 1985, // used in taglines ("since 1985")
     qrType: 'AISWARYA_MEMBER', // membership QR payload marker (verification scans)
-    address: 'Kuppakolly P.O., 670 301, Kannur District, Kerala',
-    phone: '+91 94466 00000',
-    email: 'aiswaryalibrarykuppakolly@gmail.com',
     // Fallback contact/social links — the live values are fetched from the
-    // server's ClubSettings (GET /api/public/settings) and override these.
+    // server's ClubSettings (GET /api/public/settings) and override these. Keep
+    // the address/phone/email here in step with server/src/config/constants.js
+    // CLUB, which the server twin of this object also falls back to.
+    address:
+      'Aiswarya Library and Reading Room, Arts and Sports Club, Kuppakkolly, Ambalavayal P.O., Wayanad, PIN: 673593',
+    phone: '+91 94466 00000',
+    email: '12bty6652@gmail.com',
     social: {
       mapsUrl: '',
       facebookUrl: '',

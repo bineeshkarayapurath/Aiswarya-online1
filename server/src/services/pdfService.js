@@ -5,6 +5,7 @@ const fs = require('fs');
 const config = require('../config/constants');
 const { pdfDir, qrDir } = require('../utils/storage');
 const { drawSignature, getClubSignatures } = require('./signatureService');
+const { getClubContact } = require('./clubContactService');
 
 const MM = 72 / 25.4;
 
@@ -43,14 +44,15 @@ async function writeQrImage(payload, filename) {
 
 /**
  * Officer signature block for the foot of an A4 document: the signature rests
- * on a rule, with the officer's name and designation beneath it.
+ * on a rule, with the officer's name and designation beneath it, followed by the
+ * number the club publishes for that post.
  *
  * `bottomY` is the y of the rule. The whole block is skipped when the post has
  * no signature configured — a document must never carry a blank line that reads
  * as a signature. When a signature is configured but the image cannot be read
  * (dead ImgBB link), the name and rule are still printed rather than failing.
  */
-async function officerSignatureBlock(doc, { url, name, designation }, { x, w, bottomY }) {
+async function officerSignatureBlock(doc, { url, name, designation, phone }, { x, w, bottomY }) {
   if (!url) return false;
 
   const lineColor = config.CLUB.colors.primary900;
@@ -72,6 +74,9 @@ async function officerSignatureBlock(doc, { url, name, designation }, { x, w, bo
     width: w,
     align: 'center',
   });
+  if (phone) {
+    doc.text(phone, x, bottomY + 25, { width: w, align: 'center' });
+  }
   return true;
 }
 
@@ -86,8 +91,18 @@ async function documentSignatureBlocks(doc, signatures) {
   const ruleY = doc.page.height - M - 78;
 
   const officers = [
-    { url: signatures.presidentSignatureUrl, name: signatures.presidentName, designation: 'President' },
-    { url: signatures.secretarySignatureUrl, name: signatures.secretaryName, designation: 'Secretary' },
+    {
+      url: signatures.presidentSignatureUrl,
+      name: signatures.presidentName,
+      designation: 'President',
+      phone: signatures.presidentPhone,
+    },
+    {
+      url: signatures.secretarySignatureUrl,
+      name: signatures.secretaryName,
+      designation: 'Secretary',
+      phone: signatures.secretaryPhone,
+    },
   ].filter((o) => o.url);
 
   if (!officers.length) return;
@@ -101,6 +116,28 @@ async function documentSignatureBlocks(doc, signatures) {
   const w = 210;
   await officerSignatureBlock(doc, officers[0], { x: M, w, bottomY: ruleY });
   await officerSignatureBlock(doc, officers[1], { x: W - M - w, w, bottomY: ruleY });
+}
+
+/**
+ * Address / phone / email strip for the letterhead, drawn under the Reg No line.
+ *
+ * Every value comes from clubContactService, so the letterhead, the ID cards and
+ * the website always print the same current details instead of a second hardcoded
+ * copy drifting out of step with them. Returns the y the caller can continue from.
+ */
+function letterheadContact(doc, contact, { x, w, y }) {
+  const grey = config.CLUB.colors.grey;
+
+  const lines = [contact.address, [contact.phone, contact.email].filter(Boolean).join('  •  ')]
+    .filter(Boolean)
+    .map((text) => cleanText(text));
+
+  doc.font('Helvetica').fontSize(7.5).fillColor(grey);
+  lines.forEach((text) => {
+    doc.text(text, x, y, { width: w, align: 'center' });
+    y += doc.heightOfString(text, { width: w, align: 'center' }) + 1.5;
+  });
+  return y;
 }
 
 /** ------------------------------------------------------------------ *
@@ -127,6 +164,9 @@ async function generateApplicationPdf(user, { approvedBy = '', approvedAt = null
   const grey = config.CLUB.colors.grey;
   const ink = config.CLUB.colors.ink;
   const pageBottom = H - M;
+  // Resolved once per document: address, email and the officer phones are the
+  // club's current values, not a second hardcoded copy in this file.
+  const contact = await getClubContact();
 
   // ======================= HEADER =======================
   const headerTop = 34;
@@ -150,10 +190,14 @@ async function generateApplicationPdf(user, { approvedBy = '', approvedAt = null
   doc.text(config.CLUB.tagline, titleX, hdrY + 3, { width: titleW, align: 'center' });
   hdrY += 15;
 
+  const regLine = `Reg No: ${config.CLUB.regNo}`;
   doc.font('Helvetica-Bold').fontSize(11).fillColor(gold);
-  doc.text(`Reg No: ${config.CLUB.regNo}`, titleX, hdrY, { width: titleW, align: 'center' });
+  doc.text(regLine, titleX, hdrY, { width: titleW, align: 'center' });
+  hdrY += doc.heightOfString(regLine, { width: titleW, align: 'center' }) + 4;
 
-  const lineY = Math.max(hdrY + 18, headerTop + 78);
+  hdrY = letterheadContact(doc, contact, { x: titleX, w: titleW, y: hdrY });
+
+  const lineY = Math.max(hdrY + 8, headerTop + 78);
   doc.moveTo(M, lineY).lineTo(W - M, lineY).lineWidth(2).strokeColor(gold).stroke();
   doc.moveTo(M, lineY + 3).lineTo(W - M, lineY + 3).lineWidth(0.75).strokeColor(lineColor).stroke();
 
@@ -303,6 +347,7 @@ async function generateIdCardPdf(user) {
   const file = path.join(pdfDir(), `idcard_${user.membershipId || user._id}.pdf`);
   const stream = fs.createWriteStream(file);
   doc.pipe(stream);
+  const contact = await getClubContact();
 
   // ---- FRONT ----
   const gold = config.CLUB.colors.accentLight;
@@ -495,7 +540,31 @@ async function generateIdCardPdf(user) {
 
   // The rules block ends around 27mm, so the divider is pulled up to leave a
   // generous band for the signature above the 48.5mm rule.
-  doc.moveTo(3 * MM, 36 * MM).lineTo(CARD_W - 3 * MM, 36 * MM).lineWidth(0.5).strokeColor(gold).stroke();
+  const dividerY = 36 * MM;
+
+  // Official address + contact line, in the gap the rules leave above the divider.
+  // A CR80 is a fixed canvas, so the block is measured first and skipped entirely
+  // rather than allowed to collide with the rule below it.
+  const cardContact = [
+    contact.address,
+    [contact.phone, contact.email].filter(Boolean).join('  •  '),
+  ]
+    .filter(Boolean)
+    .map((t) => cleanText(t))
+    .join('\n');
+  if (cardContact) {
+    const addrY = ry + 0.7 * MM;
+    // Measured with the same options it is drawn with, so the guard cannot pass a
+    // block that turns out taller than the estimate.
+    const addrOpts = { width: CARD_W - 8 * MM, align: 'center' };
+    doc.font('Helvetica').fontSize(4.4);
+    const addrH = doc.heightOfString(cardContact, addrOpts);
+    if (addrY + addrH <= dividerY - 1 * MM) {
+      doc.fillColor(inkSoft).text(cardContact, 4 * MM, addrY, addrOpts);
+    }
+  }
+
+  doc.moveTo(3 * MM, dividerY).lineTo(CARD_W - 3 * MM, dividerY).lineWidth(0.5).strokeColor(gold).stroke();
 
   // Issued date (left) and member ID (right) share a single row
   doc.font('Helvetica').fontSize(5.4).fillColor(inkSoft);

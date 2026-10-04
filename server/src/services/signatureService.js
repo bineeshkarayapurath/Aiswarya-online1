@@ -3,7 +3,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const config = require('../config/constants');
 const ClubSettings = require('../models/ClubSettings');
-const User = require('../models/User');
+const { getClubContact } = require('./clubContactService');
 
 // Officer signatures are uploaded through the same POST /api/upload endpoint as
 // member photos, so the stored value is either a local storage path
@@ -106,15 +106,21 @@ async function drawSignature(doc, stored, { x, y, w, h }) {
   }
 }
 
-// Current officer signature URLs plus the names of the members currently holding
-// those posts, so PDFs can caption a signature with a real name. Every lookup is
-// best-effort: a document must still generate if the database is unhappy.
+// Current officer signature URLs plus the names and published phone numbers of
+// the members currently holding those posts, so PDFs can caption a signature with
+// a real name and a contactable number. Officer identity comes from
+// clubContactService, the same resolver the footer and the rest of the documents
+// read, so a signature block can never disagree with the contact details printed
+// beside it. Best-effort throughout: a document must still generate if the
+// database is unhappy.
 async function getClubSignatures() {
   const out = {
     presidentSignatureUrl: '',
     secretarySignatureUrl: '',
     presidentName: '',
+    presidentPhone: '',
     secretaryName: '',
+    secretaryPhone: '',
   };
 
   try {
@@ -125,20 +131,11 @@ async function getClubSignatures() {
     console.warn(`[signature] settings lookup failed: ${e.message}`);
   }
 
-  try {
-    const officers = await User.find({
-      designation: { $in: ['President', 'Secretary'] },
-      status: config.STATUS.APPROVED,
-    })
-      .select('fullName designation')
-      .lean();
-    officers.forEach((o) => {
-      if (o.designation === 'President' && !out.presidentName) out.presidentName = o.fullName || '';
-      if (o.designation === 'Secretary' && !out.secretaryName) out.secretaryName = o.fullName || '';
-    });
-  } catch (e) {
-    console.warn(`[signature] officer lookup failed: ${e.message}`);
-  }
+  const contact = await getClubContact();
+  out.presidentName = contact.presidentName;
+  out.presidentPhone = contact.presidentPhone;
+  out.secretaryName = contact.secretaryName;
+  out.secretaryPhone = contact.secretaryPhone;
 
   return out;
 }

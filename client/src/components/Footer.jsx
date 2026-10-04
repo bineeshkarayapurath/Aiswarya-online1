@@ -1,40 +1,25 @@
-import { useEffect, useState } from 'react';
-import api from '../api/client';
-import { CLUB, featureEnabled, clubConfig } from '../lib/club';
+import { CLUB, featureEnabled } from '../lib/club';
+import useClubContact from '../lib/useClubContact';
 import { useLocale } from '../context/LocaleContext';
 import { FaPhoneAlt, FaEnvelope, FaMapMarkerAlt, FaFacebook, FaInstagram, FaWhatsapp, FaYoutube } from 'react-icons/fa';
 
-// Contact/social defaults come from the master config; live values from the
-// server's ClubSettings (GET /api/public/settings) override them.
-const EMPTY = {
-  phoneNumber: clubConfig.organization.phone,
-  emailAddress: clubConfig.organization.email,
-  mapsUrl: clubConfig.organization.social.mapsUrl,
-  facebookUrl: clubConfig.organization.social.facebookUrl,
-  instagramUrl: clubConfig.organization.social.instagramUrl,
-  whatsappUrl: clubConfig.organization.social.whatsappUrl,
-  youtubeUrl: clubConfig.organization.social.youtubeUrl,
-};
+const SOCIAL_KEYS = [
+  'mapsUrl',
+  'facebookUrl',
+  'instagramUrl',
+  'whatsappUrl',
+  'youtubeUrl',
+];
 
 export default function Footer() {
-  const [settings, setSettings] = useState(EMPTY);
+  // Official address, email, club phone and the current President/Secretary
+  // numbers all come from the server's ClubSettings (useClubContact), so this
+  // footer can never print a stale copy.
+  const contact = useClubContact();
+  const social = SOCIAL_KEYS.reduce((acc, k) => ({ ...acc, [k]: contact[k] }), {});
   const { t } = useLocale();
 
-  useEffect(() => {
-    let mounted = true;
-    api
-      .get('/public/settings')
-      .then((r) => r.data)
-      .then((data) => {
-        if (mounted) setSettings({ ...EMPTY, ...(data.settings || {}) });
-      })
-      .catch(() => {});
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  const has = (url) => Boolean(url && String(url).trim());
+  const has = (v) => Boolean(v && String(v).trim());
 
   return (
     <footer className="mt-auto border-t border-slate-200 bg-emerald-900 text-white">
@@ -74,24 +59,45 @@ export default function Footer() {
         <div>
           <h4 className="mb-4 text-sm font-bold text-gold">{t('footer.contactUs')}</h4>
           <ul className="space-y-2.5 text-sm text-emerald-200">
-            {has(settings.phoneNumber) && (
+            {has(contact.address) && (
+              <li className="flex gap-2">
+                <FaMapMarkerAlt className="mt-0.5 shrink-0" /> <span>{contact.address}</span>
+              </li>
+            )}
+            {has(contact.phoneNumber) && (
               <li>
-                <a href={`tel:${settings.phoneNumber}`} className="flex items-center gap-2 hover:text-gold">
-                  <FaPhoneAlt /> {settings.phoneNumber}
+                <a href={`tel:${contact.phoneNumber}`} className="flex items-center gap-2 hover:text-gold">
+                  <FaPhoneAlt /> {contact.phoneNumber}
                 </a>
               </li>
             )}
-            {has(settings.emailAddress) && (
-              <li>
-                <a href={`mailto:${settings.emailAddress}`} className="flex items-center gap-2 hover:text-gold">
-                  <FaEnvelope /> {settings.emailAddress}
+            {/* Officer numbers are resolved from whoever currently holds the post,
+                so they follow a change of President / Secretary on their own. */}
+            {has(contact.presidentPhone) && (
+              <li className="text-xs">
+                <a href={`tel:${contact.presidentPhone}`} className="flex items-center gap-2 hover:text-gold">
+                  <FaPhoneAlt className="text-[10px]" /> President: {contact.presidentPhone}
                 </a>
               </li>
             )}
-            {has(settings.whatsappUrl) && (
+            {has(contact.secretaryPhone) && (
+              <li className="text-xs">
+                <a href={`tel:${contact.secretaryPhone}`} className="flex items-center gap-2 hover:text-gold">
+                  <FaPhoneAlt className="text-[10px]" /> Secretary: {contact.secretaryPhone}
+                </a>
+              </li>
+            )}
+            {has(contact.emailAddress) && (
+              <li>
+                <a href={`mailto:${contact.emailAddress}`} className="flex items-center gap-2 hover:text-gold">
+                  <FaEnvelope /> {contact.emailAddress}
+                </a>
+              </li>
+            )}
+            {has(social.whatsappUrl) && (
               <li>
                 <a
-                  href={settings.whatsappUrl}
+                  href={social.whatsappUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="flex items-center gap-2 hover:text-gold"
@@ -100,10 +106,10 @@ export default function Footer() {
                 </a>
               </li>
             )}
-            {has(settings.mapsUrl) && (
+            {has(social.mapsUrl) && (
               <li>
                 <a
-                  href={settings.mapsUrl}
+                  href={social.mapsUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="flex items-center gap-2 hover:text-gold"
@@ -113,19 +119,19 @@ export default function Footer() {
               </li>
             )}
           </ul>
-          {has(settings.facebookUrl) || has(settings.instagramUrl) || has(settings.whatsappUrl) || has(settings.youtubeUrl) ? (
+          {has(social.facebookUrl) || has(social.instagramUrl) || has(social.whatsappUrl) || has(social.youtubeUrl) ? (
             <div className="mt-4 flex gap-3 text-lg text-emerald-300">
-              {has(settings.facebookUrl) && (
-                <a href={settings.facebookUrl} target="_blank" rel="noreferrer" className="hover:text-gold"><FaFacebook /></a>
+              {has(social.facebookUrl) && (
+                <a href={social.facebookUrl} target="_blank" rel="noreferrer" className="hover:text-gold"><FaFacebook /></a>
               )}
-              {has(settings.instagramUrl) && (
-                <a href={settings.instagramUrl} target="_blank" rel="noreferrer" className="hover:text-gold"><FaInstagram /></a>
+              {has(social.instagramUrl) && (
+                <a href={social.instagramUrl} target="_blank" rel="noreferrer" className="hover:text-gold"><FaInstagram /></a>
               )}
-              {has(settings.whatsappUrl) && (
-                <a href={settings.whatsappUrl} target="_blank" rel="noreferrer" className="hover:text-gold"><FaWhatsapp /></a>
+              {has(social.whatsappUrl) && (
+                <a href={social.whatsappUrl} target="_blank" rel="noreferrer" className="hover:text-gold"><FaWhatsapp /></a>
               )}
-              {has(settings.youtubeUrl) && (
-                <a href={settings.youtubeUrl} target="_blank" rel="noreferrer" className="hover:text-gold"><FaYoutube /></a>
+              {has(social.youtubeUrl) && (
+                <a href={social.youtubeUrl} target="_blank" rel="noreferrer" className="hover:text-gold"><FaYoutube /></a>
               )}
             </div>
           ) : null}

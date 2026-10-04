@@ -1,10 +1,17 @@
 const ClubSettings = require('../models/ClubSettings');
+const { getClubContact } = require('../services/clubContactService');
 
 // Public contact & social details — safe to expose to anonymous visitors and
 // consumed by the website footer.
 const CONTACT_FIELDS = [
+  'address',
   'phoneNumber',
   'emailAddress',
+  'presidentPhone',
+  'secretaryPhone',
+];
+
+const SOCIAL_FIELDS = [
   'mapsUrl',
   'facebookUrl',
   'instagramUrl',
@@ -16,9 +23,9 @@ const CONTACT_FIELDS = [
 // ID cards members may download) but kept out of the public settings payload.
 const SIGNATURE_FIELDS = ['secretarySignatureUrl', 'presidentSignatureUrl'];
 
-const SETTING_FIELDS = [...CONTACT_FIELDS, ...SIGNATURE_FIELDS];
+const SETTING_FIELDS = [...CONTACT_FIELDS, ...SOCIAL_FIELDS, ...SIGNATURE_FIELDS];
 
-const EMPTY = CONTACT_FIELDS.concat(SIGNATURE_FIELDS).reduce((acc, f) => {
+const EMPTY = SETTING_FIELDS.reduce((acc, f) => {
   acc[f] = '';
   return acc;
 }, {});
@@ -39,11 +46,30 @@ async function getOrCreate() {
   return doc;
 }
 
-// Public: fetch the active contact & social settings
+// Public: the resolved contact details plus the social links. The contact block
+// comes from clubContactService rather than the raw row so the footer shows the
+// same numbers the PDFs and ID cards print — including officer numbers that are
+// following the current office-bearer instead of being pinned in settings.
 exports.getSettings = async (req, res) => {
   try {
-    const doc = await getOrCreate();
-    return res.json({ settings: pickSettings(doc, CONTACT_FIELDS) });
+    const [doc, contact] = await Promise.all([getOrCreate(), getClubContact()]);
+    return res.json({
+      settings: {
+        ...pickSettings(doc, SOCIAL_FIELDS),
+        address: contact.address,
+        phoneNumber: contact.phone,
+        emailAddress: contact.email,
+        presidentPhone: contact.presidentPhone,
+        secretaryPhone: contact.secretaryPhone,
+      },
+      // Lets the settings screen tell a blank officer input ("follow whoever holds
+      // the post") apart from a deliberately published number, so opening and
+      // saving the form cannot pin the current office-bearer's number in place.
+      officerPhonesFromAccount: {
+        president: contact.presidentPhoneFromAccount,
+        secretary: contact.secretaryPhoneFromAccount,
+      },
+    });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }

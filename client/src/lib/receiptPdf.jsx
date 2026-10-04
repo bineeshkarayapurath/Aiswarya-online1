@@ -2,9 +2,17 @@ import { createRoot } from 'react-dom/client';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import ReceiptVoucherDocument from '../components/ReceiptVoucherDocument';
+import { clubContactReady } from './useClubContact';
+import { clubSignaturesReady } from './useClubSignatures';
 
 let container = null;
 let root = null;
+
+// A document captured before these resolve would print the white-label fallback
+// contact details and an empty signature rule instead of the club's real ones, so
+// the requests are awaited up front. The timeout keeps a slow or offline API from
+// blocking the export — the fallbacks then apply, which is still a valid document.
+const READY_TIMEOUT_MS = 2500;
 
 async function mountDocument(voucher) {
   if (!container) {
@@ -14,14 +22,18 @@ async function mountDocument(voucher) {
     document.body.appendChild(container);
     root = createRoot(container);
   }
+  await Promise.race([
+    Promise.all([clubContactReady(), clubSignaturesReady()]),
+    new Promise((r) => setTimeout(r, READY_TIMEOUT_MS)),
+  ]);
   root.render(<ReceiptVoucherDocument voucher={voucher} />);
   if (document.fonts && document.fonts.ready) {
     try {
       await document.fonts.ready;
     } catch (e) {}
   }
-  // Let the logo image paint before capture.
-  await new Promise((r) => setTimeout(r, 250));
+  // Let the logo and signature images paint before capture.
+  await new Promise((r) => setTimeout(r, 350));
   return container;
 }
 

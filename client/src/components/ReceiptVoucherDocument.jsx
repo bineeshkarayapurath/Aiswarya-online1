@@ -1,5 +1,7 @@
 import clubConfig from '../config/clubConfig';
 import { rupeesToWords } from '../lib/amountWords';
+import useClubContact from '../lib/useClubContact';
+import useClubSignatures from '../lib/useClubSignatures';
 
 const org = clubConfig.organization;
 const brand = clubConfig.branding;
@@ -25,6 +27,13 @@ export default function ReceiptVoucherDocument({ voucher, qrImage }) {
   const isReceipt = voucher?.type === 'RECEIPT';
   const title = isReceipt ? 'Receipt' : 'Voucher';
 
+  // Address, email and phone come from the club settings rather than the config,
+  // so a change in the admin panel reaches every receipt and voucher.
+  const contact = useClubContact();
+  // The club's stored Secretary signature, applied automatically to the authorised
+  // signatory block instead of leaving a blank line for a wet signature.
+  const { secretarySignatureUrl } = useClubSignatures();
+
   return (
     <div
       id="receipt-document"
@@ -46,10 +55,10 @@ export default function ReceiptVoucherDocument({ voucher, qrImage }) {
             Reg No: {org.regNo}
           </div>
         </div>
-        <div style={{ textAlign: 'right', fontSize: 10, color: theme.primary[100], lineHeight: 1.6 }}>
-          <div>{org.address}</div>
-          <div>{org.phone}</div>
-          <div>{org.email}</div>
+        <div style={{ textAlign: 'right', fontSize: 10, color: theme.primary[100], lineHeight: 1.6, maxWidth: 250 }}>
+          <div>{contact.address}</div>
+          <div>{contact.phoneNumber}</div>
+          <div>{contact.emailAddress}</div>
         </div>
       </div>
       <div style={{ height: 3, background: GOLD }} />
@@ -126,15 +135,29 @@ export default function ReceiptVoucherDocument({ voucher, qrImage }) {
         </div>
       )}
 
-      {/* Signatory */}
+      {/* Signatory — the authorised block carries the club's stored Secretary
+          signature, applied automatically instead of a blank rule for a wet one. */}
       <div style={{ padding: '34px 28px 18px', display: 'flex', justifyContent: 'space-between' }}>
         <div style={{ textAlign: 'center', width: 180 }}>
           <div style={{ marginBottom: 36, fontSize: 11, color: GREY }}>Cashier / Authorised Person</div>
           <div style={{ borderTop: `1px solid ${INK}`, paddingTop: 6, fontSize: 10, fontWeight: 700, color: INK }}>Signature</div>
         </div>
-        <div style={{ textAlign: 'center', width: 180 }}>
-          <div style={{ marginBottom: 36, fontSize: 11, color: GREY }}>For {org.shortName}</div>
-          <div style={{ borderTop: `1px solid ${INK}`, paddingTop: 6, fontSize: 10, fontWeight: 700, color: INK }}>Authorised Signatory</div>
+        <div style={{ textAlign: 'center', width: 200 }}>
+          <div style={{ height: 36, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+            {secretarySignatureUrl && (
+              <img
+                src={secretarySignatureUrl}
+                alt=""
+                style={{ maxHeight: 34, maxWidth: '100%', objectFit: 'contain', objectPosition: 'bottom' }}
+              />
+            )}
+          </div>
+          <div style={{ borderTop: `1px solid ${INK}`, paddingTop: 6, fontSize: 10, fontWeight: 700, color: INK }}>
+            Authorised Signatory
+          </div>
+          {contact.secretaryPhone && (
+            <div style={{ fontSize: 9, color: GREY, marginTop: 2 }}>{contact.secretaryPhone}</div>
+          )}
         </div>
       </div>
 

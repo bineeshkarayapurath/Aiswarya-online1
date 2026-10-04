@@ -43,6 +43,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
 import { FaCheckCircle, FaTimesCircle, FaEdit, FaFilePdf, FaIdCardAlt, FaTrashAlt, FaHourglass, FaPhoneAlt, FaEnvelope, FaMapMarkerAlt, FaFacebook, FaInstagram, FaWhatsapp, FaYoutube, FaSave, FaSignature, FaUpload } from 'react-icons/fa';
 import { invalidateClubSignatures } from '../lib/useClubSignatures';
+import { invalidateClubContact } from '../lib/useClubContact';
 import { invalidateCachedResource } from '../lib/useCachedResource';
 
 const MODULES = [
@@ -745,9 +746,25 @@ function ApprovedMembers() {
 /* ------------------------------------------------------------------ *
  *  Module: System Settings (Footer & Social Links)
  * ------------------------------------------------------------------ */
-const SETTING_FIELDS = [
+// Published contact details. These are the club's live values: the website footer,
+// the application letterhead, the ID cards and the receipts/vouchers all read them
+// through GET /api/public/settings, and each field falls back to the white-label
+// config in client/src/config/clubConfig.js until it is filled in here.
+const CONTACT_FIELDS = [
   { key: 'phoneNumber', label: 'Official Phone Number', placeholder: '+91 9999999999', type: 'tel', icon: FaPhoneAlt },
-  { key: 'emailAddress', label: 'Official Email Address', placeholder: 'club@example.com', type: 'email', icon: FaEnvelope },
+  { key: 'emailAddress', label: 'Official Email Address', placeholder: '12bty6652@gmail.com', type: 'email', icon: FaEnvelope },
+];
+
+// Officer phone numbers. Leaving one blank means "use whatever number the member
+// currently holding that post has on their account", which is what makes electing
+// a new President or Secretary show up in the footer and on every document without
+// a second edit. Set a value only to publish a different number, e.g. a landline.
+const OFFICER_FIELDS = [
+  { key: 'presidentPhone', label: "President's Phone Number", autoKey: 'president', icon: FaPhoneAlt },
+  { key: 'secretaryPhone', label: "Secretary's Phone Number", autoKey: 'secretary', icon: FaPhoneAlt },
+];
+
+const SOCIAL_FIELDS = [
   { key: 'mapsUrl', label: 'Google Maps Location URL', placeholder: 'https://maps.google.com/?q=...', type: 'url', icon: FaMapMarkerAlt },
   { key: 'facebookUrl', label: 'Facebook URL', placeholder: 'https://facebook.com/...', type: 'url', icon: FaFacebook },
   { key: 'instagramUrl', label: 'Instagram URL', placeholder: 'https://instagram.com/...', type: 'url', icon: FaInstagram },
@@ -760,7 +777,7 @@ const SIGNATURE_FIELDS = [
   {
     key: 'secretarySignatureUrl',
     label: "Secretary's Signature",
-    hint: "Printed on the back of every member ID card, and on official PDFs and letterheads.",
+    hint: "Printed on the back of every member ID card, on official PDFs and letterheads, and on the authorised signatory block of every receipt and voucher.",
   },
   {
     key: 'presidentSignatureUrl',
@@ -770,8 +787,11 @@ const SIGNATURE_FIELDS = [
 ];
 
 const EMPTY_SETTINGS = {
+  address: '',
   phoneNumber: '',
   emailAddress: '',
+  presidentPhone: '',
+  secretaryPhone: '',
   mapsUrl: '',
   facebookUrl: '',
   instagramUrl: '',
@@ -864,6 +884,9 @@ function SignatureField({ field, value, onChange }) {
 function SettingsPanel() {
   const { t } = useLocale();
   const [form, setForm] = useState(EMPTY_SETTINGS);
+  // The number each blank officer field is currently resolving to, so it can be
+  // shown as the field's hint instead of being saved back as a pinned value.
+  const [autoPhones, setAutoPhones] = useState({ president: '', secretary: '' });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -874,13 +897,23 @@ function SettingsPanel() {
       api.get('/public/settings'),
       api.get('/settings/signatures').catch(() => ({ data: {} })),
     ])
-      .then(([social, sig]) =>
+      .then(([social, sig]) => {
+        const settings = social.data.settings || {};
+        const fromAccount = social.data.officerPhonesFromAccount || {};
+        setAutoPhones({
+          president: settings.presidentPhone || '',
+          secretary: settings.secretaryPhone || '',
+        });
         setForm({
           ...EMPTY_SETTINGS,
-          ...(social.data.settings || {}),
+          ...settings,
+          // A number that is only following the current office-bearer has to load
+          // blank, or simply saving this form would pin today's number in place.
+          ...(fromAccount.president ? { presidentPhone: '' } : {}),
+          ...(fromAccount.secretary ? { secretaryPhone: '' } : {}),
           ...(sig.data.signatures || {}),
-        })
-      )
+        });
+      })
       .catch((e) => toast.error(e.response?.data?.message || 'Failed to load settings'))
       .finally(() => setLoading(false));
   }, []);
@@ -890,8 +923,14 @@ function SettingsPanel() {
     try {
       const res = await api.put('/admin/settings', form);
       setForm({ ...EMPTY_SETTINGS, ...res.data.settings });
-      // Cards already on screen must pick up the new signature.
+      setAutoPhones({
+        president: res.data.settings.presidentPhone || '',
+        secretary: res.data.settings.secretaryPhone || '',
+      });
+      // Cards and receipts already on screen must pick up the new signatures, and
+      // the footer the new contact details.
       invalidateClubSignatures();
+      invalidateClubContact();
       toast.success('Settings saved');
     } catch (e) {
       toast.error(e.response?.data?.message || 'Save failed');
@@ -909,9 +948,10 @@ function SettingsPanel() {
           <FaSignature className="text-gold" /> Officer Signatures
         </h4>
         <p className="mt-1 text-sm text-slate-500">
-          Upload a transparent PNG of each officer’s signature. They are applied automatically
-          wherever an authorised signature is required — the Secretary’s appears on the back of
-          every digital ID card, and both are appended to official PDF documents and letterheads.
+          Upload a transparent PNG of each officer&rsquo;s signature. They are applied automatically
+          wherever an authorised signature is required — the Secretary&rsquo;s appears on the back of
+          every digital ID card and on the signatory block of every receipt and voucher, and both are
+          appended to official PDF documents and letterheads.
           Uploading is not enough on its own: press Save Settings to store the new signature.
         </p>
 
@@ -930,25 +970,96 @@ function SettingsPanel() {
       <div className="rounded-2xl border border-slate-200 bg-white p-6">
         <h4 className="text-base font-extrabold text-emerald-900">{t('admin.footerSocial')}</h4>
         <p className="mt-1 text-sm text-slate-500">
-          These contact details and social links are shown on the public website footer. Leave a
-          field empty to hide the icon/link.
+          The club&rsquo;s official contact details. The address, email and phone appear on the website
+          footer, on membership application PDFs and letterheads, on the back of member ID cards and
+          on receipts and vouchers — a change here reaches all of them at once.
         </p>
 
-        <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
-          {SETTING_FIELDS.map(({ key, label, placeholder, type, icon: Icon }) => (
-            <div key={key}>
-              <label className="label flex items-center gap-1.5">
-                <Icon className="text-slate-400" /> {label}
-              </label>
-              <input
-                type={type}
-                className="input"
-                placeholder={placeholder}
-                value={form[key]}
-                onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-              />
-            </div>
-          ))}
+        <div className="mt-5 space-y-4">
+          <div>
+            <label className="label flex items-center gap-1.5">
+              <FaMapMarkerAlt className="text-slate-400" /> Official Address
+            </label>
+            <textarea
+              className="input min-h-[60px]"
+              placeholder="Street, Post office, District, PIN"
+              value={form.address}
+              onChange={(e) => setForm({ ...form, address: e.target.value })}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {CONTACT_FIELDS.map(({ key, label, placeholder, type, icon: Icon }) => (
+              <div key={key}>
+                <label className="label flex items-center gap-1.5">
+                  <Icon className="text-slate-400" /> {label}
+                </label>
+                <input
+                  type={type}
+                  className="input"
+                  placeholder={placeholder}
+                  value={form[key]}
+                  onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-6 border-t border-slate-100 pt-5">
+          <h5 className="text-sm font-extrabold text-emerald-900">Office-Bearer Phone Numbers</h5>
+          <p className="mt-1 text-sm text-slate-500">
+            Leave a field blank to publish the number on the member account currently holding that
+            post — electing a new President or Secretary then updates the footer and the documents by
+            itself. Enter a number only to publish a different one, such as a club landline.
+          </p>
+
+          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+            {OFFICER_FIELDS.map(({ key, label, autoKey, icon: Icon }) => (
+              <div key={key}>
+                <label className="label flex items-center gap-1.5">
+                  <Icon className="text-slate-400" /> {label}
+                </label>
+                <input
+                  type="tel"
+                  className="input"
+                  placeholder={
+                    autoPhones[autoKey]
+                      ? `Auto: ${autoPhones[autoKey]}`
+                      : 'Auto: no number on the current officer account'
+                  }
+                  value={form[key]}
+                  onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                />
+                <p className="mt-1 text-xs text-slate-400">
+                  Currently publishing: <span className="font-semibold">{autoPhones[autoKey] || '—'}</span>
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-6 border-t border-slate-100 pt-5">
+          <p className="text-sm text-slate-500">
+            Social links shown alongside the contact details in the footer. Leave a field empty to hide
+            the icon/link.
+          </p>
+          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+            {SOCIAL_FIELDS.map(({ key, label, placeholder, type, icon: Icon }) => (
+              <div key={key}>
+                <label className="label flex items-center gap-1.5">
+                  <Icon className="text-slate-400" /> {label}
+                </label>
+                <input
+                  type={type}
+                  className="input"
+                  placeholder={placeholder}
+                  value={form[key]}
+                  onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 

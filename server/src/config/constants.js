@@ -152,6 +152,16 @@ module.exports = {
     establishedYear: 1985,
     tagline: 'Library • Arts • Sports',
     qrType: 'AISWARYA_MEMBER',
+    // Canonical official contact. ClubSettings overrides these at runtime (see
+    // services/clubContactService.js, the single resolver used by the website,
+    // the PDFs and the ID cards); these are the fallback that keeps printing the
+    // right details when the settings row has not been filled in yet.
+    // client/src/config/clubConfig.js organization.{address,phone,email} is the
+    // client twin — change both.
+    address:
+      'Aiswarya Library and Reading Room, Arts and Sports Club, Kuppakkolly, Ambalavayal P.O., Wayanad, PIN: 673593',
+    phone: '+91 94466 00000',
+    email: '12bty6652@gmail.com',
     // Mirrors client themeColors (white-label twin). Change the client config
     // and keep these in sync for server-generated PDFs / ID cards.
     colors: {

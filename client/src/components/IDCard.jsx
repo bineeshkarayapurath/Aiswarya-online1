@@ -6,6 +6,7 @@ import clubConfig from '../config/clubConfig';
 import { FaIdCard } from 'react-icons/fa';
 import { resolveMedia } from '../api/client';
 import useClubSignatures from '../lib/useClubSignatures';
+import useClubContact from '../lib/useClubContact';
 
 const RULES = [
   '1. Present this card upon entry to the library.',
@@ -181,6 +182,10 @@ function SignatureRule({ url }) {
 
 function BackFace({ user }) {
   const { secretarySignatureUrl } = useClubSignatures();
+  const contact = useClubContact();
+  const cardContact = [contact.address, [contact.phoneNumber, contact.emailAddress].filter(Boolean).join('  •  ')]
+    .filter(Boolean)
+    .join('\n');
 
   return (
     <div className="flex h-full w-full flex-col bg-gradient-to-br from-[var(--pdf-cardCream1)] to-[var(--pdf-cardCream2)]">
@@ -202,6 +207,15 @@ function BackFace({ user }) {
             <p key={r}>{r}</p>
           ))}
         </div>
+
+        {/* Official address + contact line, in the gap the rules leave above the
+            signature band. Mirrors the block printed on the generated PDF card so
+            the preview and the printable card carry the same current details. */}
+        {cardContact && (
+          <p className="relative mt-1 whitespace-pre-line text-center text-[6.5px] leading-[1.25] text-slate-500">
+            {cardContact}
+          </p>
+        )}
       </div>
 
       {/* Issued + signatures */}
