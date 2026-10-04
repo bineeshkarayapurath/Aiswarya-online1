@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import api from '../api/client';
@@ -13,6 +13,9 @@ import {
   FaTh,
   FaFileUpload,
   FaUpload,
+  FaFolder,
+  FaFolderOpen,
+  FaChevronDown,
 } from 'react-icons/fa';
 
 const EMPTY_FORM = {
@@ -53,6 +56,9 @@ export default function CatalogPanel() {
   const [dragActive, setDragActive] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [debouncedQ, setDebouncedQ] = useState('');
+  const [open, setOpen] = useState(false);
+  const prevFiltering = useRef(false);
+  const autoOpenedBySearch = useRef(false);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(q), 350);
@@ -157,10 +163,62 @@ export default function CatalogPanel() {
 
   const hasFilters = Boolean(q.trim() || category || language);
 
+  // The folder starts collapsed so the dashboard stays clean, but a search must
+  // still reveal results without the user opening it first. Opening on a fresh
+  // search and re-collapsing once that search is cleared restores the default,
+  // while a folder the user opened themselves is left alone.
+  useEffect(() => {
+    const wasFiltering = prevFiltering.current;
+    prevFiltering.current = hasFilters;
+    if (hasFilters && !wasFiltering) {
+      autoOpenedBySearch.current = !open;
+      setOpen(true);
+    } else if (!hasFilters && wasFiltering && autoOpenedBySearch.current) {
+      autoOpenedBySearch.current = false;
+      setOpen(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasFilters]);
+
   return (
-    <div className="space-y-5">
-      {/* Toolbar */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-4">
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      {/* Folder header — click or tap the bar to expand/collapse the catalog */}
+      <div className="flex items-center gap-2 border-t-4 border-gold px-4 py-3">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-controls="catalog-folder-body"
+          className="group flex min-w-0 flex-1 items-center gap-3 rounded-xl p-1 text-left transition hover:bg-slate-50"
+        >
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-900 to-emerald-600 text-lg text-gold-300 shadow">
+            {open ? <FaFolderOpen /> : <FaFolder />}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-extrabold text-slate-800 group-hover:text-emerald-900">
+              Library Books Catalog
+            </span>
+            <span className="block truncate text-xs text-slate-400">
+              {loading
+                ? 'Loading catalog…'
+                : `${books.length} book${books.length === 1 ? '' : 's'}${hasFilters ? ' found' : ' in catalog'}`}
+              {' · '}
+              {open ? 'tap to collapse' : 'tap to open'}
+            </span>
+          </span>
+          <FaChevronDown
+            className={`h-5 w-5 shrink-0 text-slate-400 transition-transform duration-300 ${
+              open ? 'rotate-180' : ''
+            }`}
+          />
+        </button>
+        <button onClick={() => setShowAdd(true)} className="btn-primary !px-3 !py-2 text-xs">
+          <FaPlus /> Add Book
+        </button>
+      </div>
+
+      {/* Search sits outside the collapsible body so books can be found without opening the folder */}
+      <div className="border-t border-slate-100 px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[200px] flex-1">
             <FaSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -171,48 +229,61 @@ export default function CatalogPanel() {
               onChange={(e) => setQ(e.target.value)}
             />
           </div>
-          <select className="input w-auto" value={category} onChange={(e) => setCategory(e.target.value)}>
-            <option value="">All Categories</option>
-            {categories.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-          <select className="input w-auto" value={language} onChange={(e) => setLanguage(e.target.value)}>
-            <option value="">All Languages</option>
-            {languages.map((l) => <option key={l} value={l}>{l}</option>)}
-          </select>
           {hasFilters && (
             <button onClick={clearFilters} className="text-xs font-bold text-red-500 hover:underline">
               Clear
             </button>
           )}
         </div>
-
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-xs font-bold text-slate-400">
-            {loading ? 'Loading...' : `${books.length} book${books.length === 1 ? '' : 's'}`}
-          </p>
-          <div className="flex items-center gap-2">
-            <div className="flex overflow-hidden rounded-lg border border-slate-200">
-              <button
-                onClick={() => setView('cards')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold transition ${view === 'cards' ? 'bg-emerald-900 text-white' : 'bg-white text-slate-500 hover:text-emerald-900'}`}
-              >
-                <FaTh /> Cards
-              </button>
-              <button
-                onClick={() => setView('table')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold transition ${view === 'table' ? 'bg-emerald-900 text-white' : 'bg-white text-slate-500 hover:text-emerald-900'}`}
-              >
-                <FaTable /> Table
-              </button>
-            </div>
-            <button onClick={() => setShowAdd(true)} className="btn-primary !py-2 text-xs">
-              <FaPlus /> Add Book
-            </button>
-          </div>
-        </div>
       </div>
 
-      {/* Excel drag & drop upload */}
+      {/* Collapsible catalog body */}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            key="catalog-body"
+            id="catalog-folder-body"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="space-y-5 border-t border-slate-100 p-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <select className="input w-auto" value={category} onChange={(e) => setCategory(e.target.value)}>
+                  <option value="">All Categories</option>
+                  {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <select className="input w-auto" value={language} onChange={(e) => setLanguage(e.target.value)}>
+                  <option value="">All Languages</option>
+                  {languages.map((l) => <option key={l} value={l}>{l}</option>)}
+                </select>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-xs font-bold text-slate-400">
+                  {loading ? 'Loading...' : `${books.length} book${books.length === 1 ? '' : 's'}`}
+                </p>
+                <div className="flex items-center gap-2">
+                  <div className="flex overflow-hidden rounded-lg border border-slate-200">
+                    <button
+                      onClick={() => setView('cards')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold transition ${view === 'cards' ? 'bg-emerald-900 text-white' : 'bg-white text-slate-500 hover:text-emerald-900'}`}
+                    >
+                      <FaTh /> Cards
+                    </button>
+                    <button
+                      onClick={() => setView('table')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold transition ${view === 'table' ? 'bg-emerald-900 text-white' : 'bg-white text-slate-500 hover:text-emerald-900'}`}
+                    >
+                      <FaTable /> Table
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Excel drag & drop upload */}
       <div
         onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
         onDragLeave={() => setDragActive(false)}
@@ -363,6 +434,10 @@ export default function CatalogPanel() {
           </table>
         </div>
       )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Manual add modal */}
       <AnimatePresence>
