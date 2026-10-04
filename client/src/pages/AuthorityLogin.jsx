@@ -1,66 +1,93 @@
 import { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
+import { FaShieldAlt, FaMobileAlt, FaCalendarAlt, FaArrowLeft } from 'react-icons/fa';
 import api from '../api/client';
 import { normalizePhone } from '../lib/club';
+import { validatePassword, scorePassword, STRENGTH_LABELS, STRENGTH_TONES } from '../lib/password';
 import { useAuth } from '../context/AuthContext';
-import OTPInput from '../components/OTPInput';
-import { FaShieldAlt, FaLock, FaSms, FaArrowLeft } from 'react-icons/fa';
+import PasswordInput from '../components/PasswordInput';
 
+// Authority Zone login: the officer's own phone number + account password.
+//
+// What makes the session an authority session is the ROLE on the account (an
+// Executive Committee designation, or an ADMIN/SUPER_ADMIN role), not a second
+// secret. The server refuses any number that is not listed in SUPER_ADMIN_PHONES,
+// and refuses an account that holds no designation.
+//
+// Accounts that predate password login get the same one-time set-password step
+// members get — no account is ever created from this screen.
 export default function AuthorityLogin() {
   const navigate = useNavigate();
   const { user, setAuth } = useAuth();
-  const [step, setStep] = useState(0);
   const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [masterPin, setMasterPin] = useState('');
-  const [sending, setSending] = useState(false);
-  const [verifying, setVerifying] = useState(false);
+  const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const [needsPassword, setNeedsPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [dob, setDob] = useState('');
+  const [saving, setSaving] = useState(false);
 
   // Already authenticated as an executive officer? Go straight to the dashboard.
   if (user) {
     return <Navigate to="/admin/dashboard" replace />;
   }
 
-  const sendOtp = async () => {
+  const login = async (e) => {
+    e.preventDefault();
     const p = normalizePhone(phone);
-    if (p.length < 10) return toast.error('Enter the authorised admin phone number');
-    setSending(true);
-    try {
-      const res = await api.post('/auth/admin/send-otp', { phone: p });
-      if (res.data.devOtp) {
-        toast(`DEV MODE OTP: ${res.data.devOtp}`, { icon: '🔑', duration: 20000 });
-      } else {
-        toast.success('OTP sent');
-      }
-      setStep(1);
-    } catch (e) {
-      toast.error(e.response?.data?.message || 'Unauthorised phone number');
-    } finally {
-      setSending(false);
-    }
-  };
+    if (p.length !== 10) return toast.error('Enter the authorised officer phone number');
+    if (!password) return toast.error('Enter your password');
 
-  const verify = async () => {
-    if (otp.length !== 6) return toast.error('Enter the 6-digit OTP');
-    if (masterPin.length < 4) return toast.error('Enter the master security PIN');
-    setVerifying(true);
+    setSubmitting(true);
     try {
-      const res = await api.post('/auth/admin/verify', {
-        phone: normalizePhone(phone),
-        code: otp,
-        masterPin,
-      });
+      const res = await api.post('/auth/admin/login', { phone: p, password });
+      if (res.data.needsPassword) {
+        setPhone(res.data.identifier || p);
+        setNeedsPassword(true);
+        return;
+      }
       setAuth(res.data.token, res.data.user);
       toast.success('Authority verified');
       navigate('/admin/dashboard');
     } catch (e) {
-      toast.error(e.response?.data?.message || 'Verification failed');
+      toast.error(e.response?.data?.message || 'Login failed');
     } finally {
-      setVerifying(false);
+      setSubmitting(false);
     }
   };
+
+  const savePassword = async (e) => {
+    e.preventDefault();
+    const problem = validatePassword(newPassword);
+    if (problem) return toast.error(problem);
+    if (newPassword !== confirmPassword) return toast.error('Passwords do not match');
+    if (!dob) return toast.error('Enter your date of birth to confirm your identity');
+
+    setSaving(true);
+    try {
+      await api.post('/auth/set-password', {
+        identifier: normalizePhone(phone),
+        password: newPassword,
+        confirmPassword,
+        dob,
+      });
+      toast.success('Password set — please sign in');
+      setNeedsPassword(false);
+      setNewPassword('');
+      setConfirmPassword('');
+      setDob('');
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Could not set password');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const score = scorePassword(newPassword);
 
   return (
     <div className="mx-auto max-w-md px-4 py-16">
@@ -78,89 +105,122 @@ export default function AuthorityLogin() {
           </p>
         </div>
 
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={step}
-            initial={{ opacity: 0, x: 24 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -24 }}
-            transition={{ duration: 0.25 }}
-            className="space-y-4"
-          >
-            {step === 0 && (
-              <>
-                <label className="label">Authorised Admin Phone</label>
+        <motion.div
+          key={needsPassword ? 'setpw' : 'login'}
+          initial={{ opacity: 0, x: 24 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.25 }}
+        >
+          {needsPassword ? (
+            <form onSubmit={savePassword} className="space-y-4">
+              <div className="rounded-xl bg-amber-50 p-3 text-xs leading-relaxed text-amber-800">
+                Your officer account was created before password login existed. Choose a
+                password to finish setting it up, then sign in normally.
+              </div>
+
+              <PasswordInput
+                label="New Password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                autoComplete="new-password"
+              />
+              {newPassword && (
+                <div>
+                  <div className="mb-1 flex gap-1">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div
+                        key={i}
+                        className={`h-1.5 flex-1 rounded-full transition ${
+                          i <= score ? STRENGTH_TONES[score] : 'bg-slate-200'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-slate-400">Strength: {STRENGTH_LABELS[score]}</p>
+                </div>
+              )}
+
+              <PasswordInput
+                label="Confirm Password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                autoComplete="new-password"
+              />
+              {confirmPassword && newPassword !== confirmPassword && (
+                <p className="text-xs font-semibold text-red-600">Passwords do not match</p>
+              )}
+
+              <div>
+                <label className="label">
+                  <FaCalendarAlt className="mr-1 text-emerald-900" /> Date of Birth
+                </label>
+                <input
+                  type="date"
+                  className="input"
+                  value={dob}
+                  max={new Date().toISOString().split('T')[0]}
+                  onChange={(e) => setDob(e.target.value)}
+                />
+                <p className="mt-1 text-xs text-slate-400">
+                  As given in your membership application. This confirms the account is
+                  yours.
+                </p>
+              </div>
+
+              <button type="submit" disabled={saving} className="btn-gold w-full">
+                {saving ? 'Saving...' : 'Set Password'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setNeedsPassword(false);
+                  setNewPassword('');
+                  setConfirmPassword('');
+                  setDob('');
+                }}
+                className="w-full text-xs font-semibold text-slate-500 hover:text-emerald-900"
+              >
+                <FaArrowLeft className="mr-1 inline" /> Back to login
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={login} className="space-y-4">
+              <div>
+                <label className="label">
+                  <FaMobileAlt className="mr-1 text-emerald-900" />
+                  Authorised Officer Phone
+                </label>
                 <div className="flex gap-2">
                   <span className="input !w-16 text-center text-emerald-900">+91</span>
                   <input
                     className="input"
                     inputMode="numeric"
                     maxLength={10}
-                    placeholder="Registered admin number"
+                    placeholder="Registered officer number"
+                    autoComplete="username"
                     value={phone}
-                    onChange={(e) =>
-                      setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))
-                    }
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
                   />
                 </div>
-                <button onClick={sendOtp} disabled={sending} className="btn-primary w-full">
-                  <FaSms className="text-xl" />
-                  {sending ? 'Sending OTP...' : 'Send OTP'}
-                </button>
-                <p className="text-center text-[11px] text-slate-400">
-                  A one-time password will be sent to the registered admin mobile number.
-                </p>
-              </>
-            )}
+              </div>
 
-            {step === 1 && (
-              <>
-                <p className="text-center text-sm text-slate-500">
-                  OTP sent to +{phone}
-                </p>
-                <OTPInput length={6} value={otp} onChange={setOtp} />
-                <div>
-                  <label className="label">
-                    <FaLock className="mr-1 inline text-emerald-900" /> Master Security PIN
-                  </label>
-                  <input
-                    className="input tracking-widest"
-                    type="password"
-                    inputMode="numeric"
-                    maxLength={6}
-                    placeholder="••••••"
-                    value={masterPin}
-                    onChange={(e) =>
-                      setMasterPin(e.target.value.replace(/\D/g, '').slice(0, 6))
-                    }
-                  />
-                </div>
-                <button
-                  onClick={verify}
-                  disabled={verifying}
-                  className="btn-gold w-full"
-                >
-                  <FaShieldAlt />
-                  {verifying ? 'Verifying...' : 'Unlock Authority Zone'}
-                </button>
-                <div className="flex justify-between">
-                  <button
-                    onClick={() => setStep(0)}
-                    className="text-xs font-semibold text-slate-500 hover:text-emerald-900"
-                  >
-                    <FaArrowLeft className="mr-1 inline" /> Back
-                  </button>
-                  <button
-                    onClick={sendOtp}
-                    className="text-xs font-semibold text-emerald-900 underline underline-offset-2"
-                  >
-                    Resend OTP
-                  </button>
-                </div>
-              </>
-            )}
-          </motion.div>
-        </AnimatePresence>
+              <PasswordInput
+                label="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+              />
+
+              <button type="submit" disabled={submitting} className="btn-gold w-full">
+                <FaShieldAlt />
+                {submitting ? 'Verifying...' : 'Unlock Authority Zone'}
+              </button>
+              <p className="text-center text-[11px] text-slate-400">
+                Sign in with the mobile number and password from your membership account.
+              </p>
+            </form>
+          )}
+        </motion.div>
       </div>
     </div>
   );

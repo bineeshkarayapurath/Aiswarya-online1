@@ -46,16 +46,17 @@ router.get('/public/gallery', gallery.listPublicAlbums);
 // IMG_BB_API_KEY is configured — returns permanent public HTTPS URLs.
 router.post('/upload', galleryUpload.array('photos', 20), uploadCtrl.uploadPhotos);
 
-// Auth
-router.post('/auth/send-otp', auth.sendOtp);
-router.post('/auth/verify-otp', auth.verifyOtp);
+// Auth — phone number + bcrypt password. No OTP / SMS delivery anywhere.
 router.post('/auth/register', upload.single('photo'), auth.register);
-router.post('/auth/member-login', auth.memberLogin);
+router.post('/auth/login', auth.login);
+// First-login password setup for accounts that predate the password field.
+// Only ever sets a FIRST password; it can never overwrite an existing one.
+router.post('/auth/set-password', auth.setPassword);
 router.get('/auth/me', requireAuth, auth.getMe);
 
-// Authority zone
-router.post('/auth/admin/send-otp', auth.adminLoginSendOtp);
-router.post('/auth/admin/verify', auth.adminLoginVerify);
+// Authority zone — same phone + password credential, gated on the account
+// actually holding an authority role (see authController.adminLogin).
+router.post('/auth/admin/login', auth.adminLogin);
 
 // Admin panel — Approval workflows & committee management (executive roles)
 router.post(

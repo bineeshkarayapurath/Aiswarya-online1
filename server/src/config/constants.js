@@ -1,6 +1,18 @@
 require('dotenv').config();
 const path = require('path');
 
+// Uploads must land in the same place no matter which directory the process was
+// started from. Absolute values are honoured as-is; a relative one (the default
+// in .env is a bare "storage") is anchored to this package's root, which is the
+// server/ directory.
+const SERVER_ROOT = path.join(__dirname, '..', '..');
+
+function resolveStorageDir(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return path.join(SERVER_ROOT, 'storage');
+  return path.isAbsolute(raw) ? path.normalize(raw) : path.resolve(SERVER_ROOT, raw);
+}
+
 // Comma-separated allowlist of frontend origins (dev + production Vercel).
 // These are ALWAYS allowed; CLIENT_URLS/CLIENT_URL on the server (Render) can
 // only ADD to the list, never remove the known deployments.
@@ -26,55 +38,44 @@ module.exports = {
   // stored /uploads/... paths are returned to the client as fully-qualified URLs
   // so photos and PDFs load from the backend's separate production domain.
   PUBLIC_API_URL: process.env.PUBLIC_API_URL || '',
-  // No test phone / test OTP exists. Every code is generated per request by
-  // otp.generateOtp(), stored as a bcrypt hash, and verified against the
-  // database — there is no fixed value that can be typed in to bypass that.
+  // Accounts are keyed by phone number and protected by a bcrypt-hashed
+  // password. There is no OTP / SMS delivery of any kind.
   MONGO_URI:
     process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/aiswarya_library',
   JWT_SECRET: process.env.JWT_SECRET || 'dev-secret-change-me',
-  // Authority Zone master PIN. Intentionally has NO default: an unset value
-  // fails every comparison, so a misconfigured deployment is locked out rather
-  // than open. server.js refuses to boot in production without it.
-  MASTER_PIN: process.env.MASTER_PIN || '',
   SUPER_ADMIN_PHONES: (process.env.SUPER_ADMIN_PHONES || '')
     .split(',')
     .map((p) => p.trim())
     .filter(Boolean),
-  // Opt-in echo of the real, freshly generated OTP back to the caller so local
-  // dev can show it in the UI. Off unless explicitly enabled, and always
-  // ignored in production. Reading the code from the server console needs no
-  // flag at all.
-  DEV_ECHO_OTP:
-    process.env.NODE_ENV !== 'production' &&
-    String(process.env.DEV_ECHO_OTP || '').toLowerCase() === 'true',
-  MEMBERSHIP_PREFIX: process.env.MEMBERSHIP_PREFIX || 'AISC',
-  MEMBERSHIP_YEAR: process.env.MEMBERSHIP_YEAR || new Date().getFullYear(),
+  // Password policy, enforced server-side in authController and mirrored by the
+  // registration form so a member is never told about it only after submitting.
+  PASSWORD: {
+    // bcrypt work factor. 12 is the current sane default: ~250 ms per hash on
+    // commodity hardware, which is slow enough to make offline cracking
+    // expensive while staying fast enough for an interactive login. Raise it
+    // freely — the cost is only paid at registration and login.
+    saltRounds: parseInt(process.env.BCRYPT_SALT_ROUNDS || '12', 10),
+    minLength: parseInt(process.env.PASSWORD_MIN_LENGTH || '8', 10),
+    // Caps how long a submitted password can be. bcrypt silently truncates
+    // beyond 72 BYTES, so two passwords sharing a 72-byte prefix would
+    // otherwise be interchangeable. Refusing the oversized input is clearer
+    // than pretending to hash it.
+    maxLength: parseInt(process.env.PASSWORD_MAX_LENGTH || '72', 10),
+  },
   // Library lending rules
   LOAN_DAYS: parseInt(process.env.LOAN_DAYS || '14', 10),
   FINE_PER_DAY: Number(process.env.FINE_PER_DAY || 5),
-  STORAGE_DIR: process.env.STORAGE_DIR || path.join(__dirname, '..', '..', 'storage'),
-  OTP_EXPIRY_MINUTES: parseInt(process.env.OTP_EXPIRY_MINUTES || '5', 10),
-  OTP_DIGITS: parseInt(process.env.OTP_DIGITS || '6', 10),
-  // OTP delivery over Meta's WhatsApp Cloud API. Unlike SMS, WhatsApp messages
-  // are billed per conversation and are NOT routed through a TRAI DLT header —
-  // the template is approved by Meta instead, under category AUTHENTICATION.
-  WHATSAPP: {
-    accessToken: process.env.WHATSAPP_ACCESS_TOKEN || '',
-    phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
-    templateName: process.env.WHATSAPP_TEMPLATE_NAME || 'login_otp_template',
-    // Must match the language the template was approved in, or Meta returns
-    // 132001. en_US is the default for templates created in the dashboard.
-    templateLanguage: process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'en_US',
-    // Templates with the one-tap autofill / "copy code" button need the OTP
-    // repeated as a button parameter. Set false for templates without it —
-    // sending a button parameter for a button-less template is rejected.
-    templateHasOtpButton:
-      String(process.env.WHATSAPP_TEMPLATE_HAS_OTP_BUTTON || 'true').toLowerCase() === 'true',
-    // Graph pins a version's behaviour for ~2 years, so this is worth bumping
-    // deliberately rather than riding v17.0 forever.
-    graphVersion: process.env.WHATSAPP_GRAPH_VERSION || 'v17.0',
-    timeoutMs: parseInt(process.env.WHATSAPP_TIMEOUT_MS || '10000', 10),
-  },
+  // Where uploaded photos, member photos, PDFs and QR codes live.
+  //
+  // A relative STORAGE_DIR (e.g. "storage" in .env) used to be handed to
+  // path.join untouched, so every consumer resolved it against process.cwd().
+  // The write side (multer) and the read side (express.static) then pointed at
+  // different directories whenever the server was started from a different
+  // folder — running it from the repo root versus from server/ produced two
+  // separate storage/ trees, and photos written by one were 404s from the other.
+  // Resolving against the server package root instead makes the location
+  // independent of where the process happens to be launched from.
+  STORAGE_DIR: resolveStorageDir(process.env.STORAGE_DIR),
   // Optional free hosting for uploaded images (ImgBB). When empty, uploads are
   // kept on the server's local storage and served via /uploads/.
   IMG_BB_API_KEY: process.env.IMG_BB_API_KEY || '',
@@ -137,6 +138,11 @@ module.exports = {
   },
   SECTIONS: ['Main', 'Vanitha Vedi', 'Bala Vedi', 'Yuvatha'],
   OFFICIABLE_SECTIONS: ['Vanitha Vedi', 'Bala Vedi', 'Yuvatha'],
+  // Prefix for generated membership IDs (e.g. ALC-001). Read by
+  // services/membershipService.nextMembershipId(); it was previously read from
+  // here while never being defined here, so every newly minted ID came out as
+  // the string "undefined-001".
+  MEMBERSHIP_PREFIX: process.env.MEMBERSHIP_PREFIX || 'ALC',
   CLUB: {
     name: 'Aiswarya Library & Arts & Sports Club',
     fullName: 'Aiswarya Library & Reading Room Arts & Sports Club, Kuppakolly',

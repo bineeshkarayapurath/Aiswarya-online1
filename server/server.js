@@ -17,17 +17,8 @@ if (config.NODE_ENV === 'production') {
   if (!config.JWT_SECRET || config.JWT_SECRET === 'dev-secret-change-me') {
     problems.push('JWT_SECRET must be set to a strong random value');
   }
-  if (!config.MASTER_PIN) {
-    problems.push('MASTER_PIN must be set (Authority Zone master PIN)');
-  }
   if (!config.SUPER_ADMIN_PHONES.length) {
     problems.push('SUPER_ADMIN_PHONES must list at least one authority phone');
-  }
-  if (!config.WHATSAPP.accessToken) {
-    problems.push('WHATSAPP_ACCESS_TOKEN must be set so OTPs can be delivered');
-  }
-  if (!config.WHATSAPP.phoneNumberId) {
-    problems.push('WHATSAPP_PHONE_NUMBER_ID must be set so OTPs can be delivered');
   }
   if (problems.length) {
     console.error('[FATAL] Refusing to start with an incomplete production config:');
@@ -44,7 +35,7 @@ fs.mkdirSync(path.join(config.STORAGE_DIR, 'qr'), { recursive: true });
 // Explicit CORS middleware: reflect the request origin when it matches an
 // allowed frontend domain (Vercel production + local dev), set the CORS
 // headers, and answer OPTIONS preflight requests with HTTP 204 so browsers can
-// call the JSON API (e.g. POST /api/auth/send-otp). Requests without an Origin
+// call the JSON API (e.g. POST /api/auth/login). Requests without an Origin
 // header (curl, health checks) pass through untouched.
 const ALLOWED_ORIGINS = ['https://aiswarya-online1.vercel.app', 'http://localhost:5173'];
 
@@ -93,8 +84,30 @@ connectDB().then(() => {
       `[${config.CLUB.name}] Server running on http://localhost:${config.PORT}`
     );
     console.log(`[CORS] Allowed origins: ${config.CLIENT_URLS.join(', ')}`);
+    console.log(`[STORAGE] ${config.STORAGE_DIR}`);
+    // Photos are stored on local disk unless an ImgBB key is configured. On a
+    // host with an ephemeral filesystem (Render, most container platforms) every
+    // redeploy or restart wipes that disk while MongoDB keeps the album records,
+    // so the gallery fills up with albums whose images all 404. Warn loudly
+    // rather than let an officer discover it after uploading their photos.
+    if (config.NODE_ENV === 'production' && !config.IMG_BB_API_KEY) {
+      console.warn(
+        '[STORAGE] WARNING: IMG_BB_API_KEY is not set, so uploaded photos are ' +
+          'written to local disk (' + config.STORAGE_DIR + '). If this host has an ' +
+          'ephemeral filesystem, photos uploaded before a restart will be missing ' +
+          'from the gallery. Set IMG_BB_API_KEY to host them durably.'
+      );
+    }
     if (config.NODE_ENV !== 'production') {
-      console.log('[DEV MODE] WhatsApp delivery disabled – read the OTP from this log.');
+      // A bcrypt cost above the default makes local logins feel slow and buries
+      // real hashing time in dev. Say so rather than letting a developer blame
+      // the auth code for it.
+      if (config.PASSWORD.saltRounds > 12) {
+        console.warn(
+          `[AUTH] BCRYPT_SALT_ROUNDS is ${config.PASSWORD.saltRounds}. Registration ` +
+            'and login will be noticeably slower than the default of 12.'
+        );
+      }
     }
   });
 });

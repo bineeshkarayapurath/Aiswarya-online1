@@ -6,38 +6,8 @@ const Counter = require('../models/Counter');
 const { publicUrl } = require('../utils/storage');
 const { generateApplicationPdf, generateIdCardPdf } = require('../services/pdfService');
 const { syncDesignationRole, effectiveRole } = require('../services/roleService');
+const { ensureMembershipId, nextMembershipId } = require('../services/membershipService');
 const publicCache = require('../services/publicCache');
-
-// Compute the next membership ID (AISC-001, AISC-002, ...) from the number of
-// approved members so the sequence always continues from the last assigned ID.
-// A uniqueness check bumps past any gap left by removed members.
-async function nextMembershipId() {
-  const count = await User.countDocuments({
-    status: config.STATUS.APPROVED,
-    membershipId: { $exists: true, $nin: ['', null] },
-  });
-  let seq = count + 1;
-  let id = `${config.MEMBERSHIP_PREFIX}-${String(seq).padStart(3, '0')}`;
-  // eslint-disable-next-line no-await-in-loop
-  while (await User.exists({ membershipId: id })) {
-    seq += 1;
-    id = `${config.MEMBERSHIP_PREFIX}-${String(seq).padStart(3, '0')}`;
-  }
-  return id;
-}
-
-// Guarantee an approved member carries a sequential, strictly-unique membership
-// ID (e.g. AISC-001, AISC-002). Approved records that were created before ID
-// assignment (legacy / direct ADMIN accounts) are backfilled on read instead of
-// ever surfacing a blank placeholder or a raw MongoDB ObjectId.
-async function ensureMembershipId(user) {
-  if (!user) return '';
-  if (user.membershipId) return user.membershipId;
-  if (user.status !== config.STATUS.APPROVED) return '';
-  user.membershipId = await nextMembershipId();
-  await user.save();
-  return user.membershipId;
-}
 
 exports.listRequests = async (req, res) => {
   try {
@@ -61,9 +31,6 @@ exports.listRequests = async (req, res) => {
       // already recognised as ADMIN by the approvals screen.
       role: effectiveRole(u),
       createdAt: u.createdAt,
-      phoneVerified: u.phoneVerified,
-      phoneVerifiedVia: u.phoneVerifiedVia,
-      firebaseUid: u.firebaseUid || '',
     }));
     return res.json({ requests: items });
   } catch (err) {
@@ -134,24 +101,10 @@ exports.editRequest = async (req, res) => {
 exports.approveRequest = async (req, res) => {
   try {
     const { id } = req.params;
-    const { manualVerify } = req.body || {};
     const user = await User.findById(id);
     if (!user) return res.status(404).json({ message: 'User not found' });
     if (user.status === config.STATUS.APPROVED) {
       return res.status(400).json({ message: 'Already approved' });
-    }
-
-    // If the applicant never completed OTP verification, the
-    // admin must explicitly mark Manual Verification to approve the phone.
-    const bypassOtp = manualVerify === true || manualVerify === 'true';
-    if (!user.phoneVerified && !bypassOtp) {
-      return res.status(400).json({
-        message: 'Applicant phone is not verified. Enable Manual Verification to approve.',
-      });
-    }
-    if (!user.phoneVerified) {
-      user.phoneVerified = true;
-      user.phoneVerifiedVia = 'manual';
     }
 
     // Only allocate a membership number if the applicant doesn't already have
@@ -416,6 +369,12 @@ exports.setDesignation = async (req, res) => {
     // next login / profile fetch, so the roster and dashboard stay in step.
     await syncDesignationRole(user);
 
+    // syncDesignationRole can promote to ADMIN, and the member roll counts real
+    // people regardless of role, so the home page total is unaffected here — but
+    // the roster summary it shares a cache entry with is not. Drop it anyway:
+    // an admin action that changes who is who should never leave a stale count.
+    publicCache.invalidate('stats');
+
     return res.json({
       message: next ? `${user.fullName} is now ${next}` : `${user.fullName} is now a General Member`,
       member: execMemberView(user),
@@ -454,6 +413,7 @@ exports.setRole = async (req, res) => {
     // designation change will not auto-revoke it.
     user.roleSource = 'manual';
     await user.save();
+    publicCache.invalidate('stats');
     return res.json({
       message: `${user.fullName} is now ${role}`,
       user: { _id: user._id, role: user.role, designation: user.designation || '', status: user.status },
@@ -532,6 +492,10 @@ exports.updateUser = async (req, res) => {
 
     await user.save();
 
+    // An edit can change the member's name, which is what tells a real member
+    // apart from an authority-login placeholder, so it can change the count.
+    publicCache.invalidate('stats');
+
     const obj = user.toObject();
     delete obj.lowerPhone;
     if (obj.photoUrl) obj.photoUrl = publicUrl(obj.photoUrl);
@@ -572,6 +536,7 @@ exports.deleteUser = async (req, res) => {
     );
 
     await User.findByIdAndDelete(id);
+    publicCache.invalidate('stats');
     return res.json({ message: 'Member record deleted' });
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -600,6 +565,8 @@ exports.clearMembers = async (req, res) => {
         }
       }
     });
+
+    publicCache.invalidate();
 
     return res.json({
       message: 'All demo members cleared',

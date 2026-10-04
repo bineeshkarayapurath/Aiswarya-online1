@@ -32,24 +32,19 @@ export default function DevTools() {
 
   const clearDemoUsers = async () => {
     // Credentials come from the local .env — never from source. Set
-    // VITE_DEV_ADMIN_PHONE / VITE_DEV_ADMIN_PIN in client/.env to enable this.
+    // VITE_DEV_ADMIN_PHONE / VITE_DEV_ADMIN_PASSWORD in client/.env to enable this.
     const phone = import.meta.env.VITE_DEV_ADMIN_PHONE;
-    const pin = import.meta.env.VITE_DEV_ADMIN_PIN;
-    if (!phone || !pin) {
-      toast.error('Set VITE_DEV_ADMIN_PHONE and VITE_DEV_ADMIN_PIN in client/.env first');
+    const password = import.meta.env.VITE_DEV_ADMIN_PASSWORD;
+    if (!phone || !password) {
+      toast.error('Set VITE_DEV_ADMIN_PHONE and VITE_DEV_ADMIN_PASSWORD in client/.env first');
       return;
     }
     if (!window.confirm('Clear ALL demo members? This deletes every member record,' +
       ' resets the membership ID counter, and removes stored photos/PDFs/QRs.')) return;
     try {
-      // Request a real OTP, then read the code from the server console.
-      await api.post('/auth/admin/send-otp', { phone });
-      const entered = window.prompt('Enter the OTP printed in the server console');
-      if (!entered) return;
-      const verify = await api.post('/auth/admin/verify', {
+      const verify = await api.post('/auth/admin/login', {
         phone,
-        code: entered.trim(),
-        masterPin: pin,
+        password,
       });
       setAuth(verify.data.token, verify.data.user);
       const res = await api.post('/admin/dev/clear-members');

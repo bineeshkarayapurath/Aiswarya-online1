@@ -45,7 +45,6 @@ export const en = {
     booksInLibrary: 'Books in Library',
     activeMembers: 'Active Members',
     yearsOfService: 'Years of Service',
-    pendingApplications: 'Pending Applications',
   },
   catalog: {
     ourLibrary: 'Our Library',
@@ -69,7 +68,7 @@ export const en = {
   },
   cta: {
     title: 'Ready to join a community that grows together?',
-    sub: 'Register with your mobile number, verify your OTP, and complete your application in under two minutes.',
+    sub: 'Register with your mobile number and a password, and complete your application in under two minutes.',
     registerNow: 'Register Now',
     alreadyMember: "I'm already a member",
   },
@@ -152,7 +151,6 @@ export const ml = {
     booksInLibrary: 'ലൈബ്രറിയിലെ പുസ്തകങ്ങൾ',
     activeMembers: 'സജീവ അംഗങ്ങൾ',
     yearsOfService: 'സേവന വർഷങ്ങൾ',
-    pendingApplications: 'തീർപ്പാക്കാനുള്ള അപേക്ഷകൾ',
   },
   catalog: {
     ourLibrary: 'ഞങ്ങളുടെ ലൈബ്രറി',
@@ -176,7 +174,7 @@ export const ml = {
   },
   cta: {
     title: 'ഒന്നിച്ച് വളരുന്ന സമൂഹത്തിന്റെ ഭാഗമാകാൻ തയ്യാറാണോ?',
-    sub: 'നിങ്ങളുടെ മൊബൈൽ നമ്പറിൽ രജിസ്റ്റർ ചെയ്യുക, OTP സ്ഥിരീകരിക്കുക, രണ്ട് മിനിറ്റിനുള്ളിൽ അപേക്ഷ പൂർത്തിയാക്കുക.',
+    sub: 'നിങ്ങളുടെ മൊബൈൽ നമ്പറും പാസ്‌വേഡും ഉപയോഗിച്ച് രജിസ്റ്റർ ചെയ്യുക, രണ്ട് മിനിറ്റിനുള്ളിൽ അപേക്ഷ പൂർത്തിയാക്കുക.',
     registerNow: 'ഇപ്പോൾ രജിസ്റ്റർ ചെയ്യുക',
     alreadyMember: 'ഞാൻ ഇതിനകം അംഗമാണ്',
   },

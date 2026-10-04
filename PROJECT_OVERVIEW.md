@@ -1,4 +1,4 @@
-# Aiswarya Library & Arts & Sports Club — Online Management System
+﻿# Aiswarya Library & Arts & Sports Club — Online Management System
 
 A full-stack membership + club administration platform for **Aiswarya Library & Reading Room Arts & Sports Club, Kuppakolly** (Kerala, India). It manages member applications/approvals, digital ID cards, committees, library catalog, book issues, programs, accounts, receipts/vouchers, community service, gallery, and assets.
 
@@ -8,7 +8,7 @@ A full-stack membership + club administration platform for **Aiswarya Library & 
 |------------|--------------------------------------------------------------|
 | Frontend   | React 18, Vite, Tailwind CSS, Framer Motion, react-router    |
 | Backend    | Node.js, Express, Mongoose (MongoDB)                         |
-| Auth       | JWT + phone OTP (WhatsApp Cloud API), Firebase Phone Auth, master PIN  |
+| Auth       | JWT + bcrypt password keyed by phone number                         |
 | Documents  | PDFKit (application PDF + digital ID card, officer signatures) |
 | Media      | Local `storage/` (served via `/uploads/`) or ImgBB CDN       |
 | Images     | QR codes, svg/logo generator scripts                         |
@@ -23,7 +23,7 @@ A full-stack membership + club administration platform for **Aiswarya Library & 
 │       ├── components/      # panels, ID card, PDF preview, navbar, etc.
 │       ├── config/clubConfig.js  # MASTER white-label branding + feature toggles
 │       ├── context/         # Auth, Locale (EN/ML), Theme
-│       ├── lib/             # club meta, permissions, phone auth, PDFs, translations
+│       ├── lib/             # club meta, permissions, password policy, PDFs, translations
 │       └── pages/           # Landing, Register, Member/Authority dashboards, gallery
 ├── server/                  # Express API
 │   ├── src/
@@ -33,7 +33,7 @@ A full-stack membership + club administration platform for **Aiswarya Library & 
 │   │   ├── middleware/      # auth, multer uploads
 │   │   ├── models/          # Mongoose schemas
 │   │   ├── routes/index.js  # full API surface
-│   │   ├── services/        # WhatsApp OTP delivery, PDF generation, storage utilities
+│   │   ├── services/        # role sync, membership IDs, PDF generation, storage utilities
 │   │   └── utils/           # storage/publicUrl, imgbb
 │   └── server.js            # entry point (express app + static /uploads)
 └── scripts/                 # logo / data fix utilities
@@ -42,8 +42,8 @@ A full-stack membership + club administration platform for **Aiswarya Library & 
 ## Key Concepts
 
 - **Membership lifecycle** — `PENDING_APPROVAL → APPROVED / REJECTED`. Applications register
-  with photo + personal details, verify phone via OTP (WhatsApp or Firebase), then an executive
-  approves and a membership ID (`AISC-001`, …) and PDFs (application + digital ID card) are
+  with photo + personal details and choose a login password, then an executive
+  approves and a membership ID (`ALC-001`, …) and PDFs (application + digital ID card) are
   generated automatically.
 - **Roles** — `MEMBER`, `ADMIN`, `SUPER_ADMIN`. `ADMIN` gets full dashboard access.
 - **Designations** — Executive Committee designations (`President`, `Secretary`, …) gate which
@@ -54,7 +54,7 @@ A full-stack membership + club administration platform for **Aiswarya Library & 
 
 ## Media URL Resolution
 
-Uploaded photos may be stored as absolute CDN URLs (ImgBB / Firebase) or relative paths
+Uploaded photos may be stored as absolute CDN URLs (ImgBB) or relative paths
 (`photos/abc.jpg`, `/uploads/photos/abc.jpg`). Two helpers keep every `<img>` working:
 
 - **Server** `publicUrl()` (`server/src/utils/storage.js`) — prefixes `/uploads/` paths with
@@ -68,10 +68,10 @@ Uploaded photos may be stored as absolute CDN URLs (ImgBB / Firebase) or relativ
 | Route                                  | Purpose                                 |
 |----------------------------------------|-----------------------------------------|
 | `POST /api/upload`                     | Generic image upload (local / ImgBB)    |
-| `POST /api/auth/register`              | Membership application (+ photo)        |
-| `POST /api/auth/send-otp` / `verify-otp`| Phone OTP send/verify                  |
-| `POST /api/auth/member-login`          | Member login (phone or membership ID)   |
-| `POST /api/auth/admin/send-otp` / `verify` | Authority login (phone + master PIN) |
+| `POST /api/auth/register`              | Membership application (phone + password, + photo) |
+| `POST /api/auth/login`                 | Member login (phone or membership ID + password) |
+| `POST /api/auth/set-password`          | First-login password setup for pre-password accounts |
+| `POST /api/auth/admin/login`           | Authority Zone login (officer phone + own password) |
 | `GET /api/auth/me`                     | Current authenticated user              |
 | `GET /api/member/profile`              | Member's own profile                    |
 | `GET /api/member/document/:type`       | Download application / ID-card PDF      |
@@ -124,28 +124,43 @@ npm run dev            # http://localhost:5173
 ### Environment
 
 - **server**: `.env` — `MONGO_URI`, `JWT_SECRET`, `PUBLIC_API_URL`, `CLIENT_URLS`,
-  `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_TEMPLATE_NAME`,
-  `IMG_BB_API_KEY`, `MASTER_PIN`, `SUPER_ADMIN_PHONES`, and optionally
-  `DEV_ECHO_OTP`. See `server/.env.example`.
+  `BCRYPT_SALT_ROUNDS`, `PASSWORD_MIN_LENGTH`, `PASSWORD_MAX_LENGTH`, `IMG_BB_API_KEY`,
+  `MEMBERSHIP_PREFIX`, `SUPER_ADMIN_PHONES`. See `server/.env.example`.
 - **client**: `.env` — `VITE_API_BASE_URL` (`/api` in dev, absolute Render URL in production).
 
 ### Authentication
 
-There are no hardcoded test credentials, fixed OTPs, or backdoor accounts. Every code is
-generated per request by `generateOtp()` (`server/src/utils/otp.js`), stored as a bcrypt hash
-in the `Otp` collection, and verified against that record — so no fixed value can be typed in
-to bypass it. Authority
-login is authorised solely by `SUPER_ADMIN_PHONES` plus `MASTER_PIN`, both required from the
-environment; `server.js` refuses to boot in production if `JWT_SECRET`, `MASTER_PIN`,
-`SUPER_ADMIN_PHONES`, `WHATSAPP_ACCESS_TOKEN` or `WHATSAPP_PHONE_NUMBER_ID` are missing or
-left at their defaults.
+There is no OTP, no SMS delivery and no external auth provider. The phone number is the
+username; the password is hashed with bcrypt by a `pre('save')` hook on the User model.
 
-Codes are delivered over Meta's WhatsApp Cloud API
-(`server/src/services/whatsappService.js`) using an approved AUTHENTICATION template —
-WhatsApp is an OTT service, so no TRAI DLT header is involved; the template is approved by
-Meta instead, which also means its wording is fixed by Meta rather than chosen per message.
+- `password` is declared `select: false`, so it is absent from every ordinary query result.
+  Only `authController` opts in with `.select('+password')`, and its `publicUser()` helper
+  strips the hash before anything is serialised.
+- The hash hook fires only when `password` is actually modified, so approving a member or
+  changing a designation never re-hashes an existing hash (which would lock them out).
+- Policy (`PASSWORD_MIN_LENGTH`, `PASSWORD_MAX_LENGTH`) is enforced server-side and mirrored
+  in `client/src/lib/password.js` so a member is told at the field, not after a round trip.
+- Login returns the same `401 Incorrect phone number or password` for an unknown number and a
+  wrong password, so the endpoint cannot be used to enumerate members. A correct password on a
+  still-pending application returns `403 { pending: true }` — a valid credential never reads as
+  a failed one.
 
-In local development the WhatsApp API is skipped and the real generated code is written to the
-server console (`[WHATSAPP-DEV] OTP for <phone>: <code>`) — read it from there, or set
-`DEV_ECHO_OTP=true` to have it returned in the API response so the UI can show it. That
-flag is ignored in production.
+**First-login password setup.** Accounts created before this system existed have no password.
+`POST /api/auth/login` reports `needsPassword: true` for them, and `POST /api/auth/set-password`
+sets their first one. Two properties keep this safe: it only ever sets a *first* password, so it
+can never become a password-reset oracle for a live account; and it requires the date of birth
+already on record to match. That date of birth is a weak knowledge factor, but with no SMS or
+email channel left it is the only thing separating a member from anyone who knows their phone
+number. Note that `needsPassword` necessarily reveals that a number *is* registered — accepted
+deliberately, since the alternative was locking every existing member out permanently.
+
+**Authority Zone.** Officers sign in with the same phone + password as everyone else; what makes
+the session an authority session is the role, not a second secret. `POST /api/auth/admin/login`
+requires the number to be in `SUPER_ADMIN_PHONES` **and** the account to hold `ADMIN` /
+`SUPER_ADMIN` or an Executive Committee designation. No account is auto-created there — under OTP
+that was safe because possession of the handset was proven by SMS, but without it anyone who
+learned an officer's number could claim the account by setting its password. An officer with no
+account is told to register first.
+
+`server.js` refuses to boot in production if `JWT_SECRET` is missing or left at its default, or if
+`SUPER_ADMIN_PHONES` is empty.

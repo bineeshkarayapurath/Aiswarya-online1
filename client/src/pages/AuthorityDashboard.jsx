@@ -43,6 +43,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
 import { FaCheckCircle, FaTimesCircle, FaEdit, FaFilePdf, FaIdCardAlt, FaTrashAlt, FaHourglass, FaPhoneAlt, FaEnvelope, FaMapMarkerAlt, FaFacebook, FaInstagram, FaWhatsapp, FaYoutube, FaSave, FaSignature, FaUpload } from 'react-icons/fa';
 import { invalidateClubSignatures } from '../lib/useClubSignatures';
+import { invalidateCachedResource } from '../lib/useCachedResource';
 
 const MODULES = [
   {
@@ -428,6 +429,7 @@ function EditMemberModal({ member, onClose, onSaved }) {
     try {
       await api.put(`/admin/users/${member._id}`, form);
       toast.success('Member updated');
+      invalidateCachedResource('public/stats');
       onSaved();
     } catch (e) {
       toast.error(e.response?.data?.message || 'Update failed');
@@ -576,6 +578,7 @@ function ApprovedMembers() {
     try {
       const res = await api.post('/admin/set-role', { userId: member._id, role });
       toast.success(res.data.message || 'Role updated');
+      invalidateCachedResource('public/stats');
       await load();
     } catch (e) {
       toast.error(e.response?.data?.message || 'Failed to update role');
@@ -593,6 +596,7 @@ function ApprovedMembers() {
     try {
       const res = await api.delete(`/admin/users/${member._id}`);
       toast.success(res.data.message || 'Member deleted');
+      invalidateCachedResource('public/stats');
       await load();
     } catch (e) {
       toast.error(e.response?.data?.message || 'Failed to delete member');
@@ -1180,31 +1184,6 @@ const TABS = [
   { key: 'REJECTED', label: 'Rejected', icon: FaTimesCircle },
 ];
 
-function PhoneBadge({ verified, via }) {
-  if (!verified) {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-amber-700">
-        <FaPhoneAlt className="text-[9px]" /> Not verified
-      </span>
-    );
-  }
-  const label =
-    via === 'manual'
-      ? 'Manual Verified'
-      : via === 'firebase' || via === 'sms'
-        ? 'SMS Verified'
-        : via === 'whatsapp'
-          ? 'WhatsApp Verified'
-          : 'OTP Verified';
-  const tone =
-    via === 'manual' ? 'bg-violet-100 text-violet-700' : 'bg-emerald-100 text-emerald-700';
-  return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide ${tone}`}>
-      <FaCheckCircle className="text-[9px]" /> {label}
-    </span>
-  );
-}
-
 function ApprovalsPanel() {
   const { t } = useLocale();
   const [view, setView] = useState('members');
@@ -1230,15 +1209,18 @@ function ApprovalsPanel() {
     load();
   }, [load]);
 
-  const approve = async (id, manualVerify = false) => {
+  const approve = async (id) => {
     setApprovingId(id);
     try {
-      const res = await api.post(`/admin/requests/${id}/approve`, {
-        manualVerify: Boolean(manualVerify),
-      });
+      const res = await api.post(`/admin/requests/${id}/approve`);
       const approved = res.data.user || { status: 'APPROVED', membershipId: res.data.membershipId };
       toast.success(`Approved! ID: ${approved.membershipId}`);
       setSelected(null);
+      // Approval changes the member count shown on the home page. That number is
+      // cached in sessionStorage for up to 30 minutes and invalidateCachedResource
+      // was never called anywhere, so without this the officer approves someone,
+      // walks to the home page, and sees the old total with no obvious reason.
+      invalidateCachedResource('public/stats');
       setRequests((prev) =>
         prev.map((r) => (r._id === id ? { ...r, status: approved.status, membershipId: approved.membershipId } : r))
       );
@@ -1254,6 +1236,7 @@ function ApprovalsPanel() {
     try {
       await api.post(`/admin/requests/${id}/reject`, { reason });
       toast.success('Request rejected');
+      invalidateCachedResource('public/stats');
       setSelected(null);
       load();
     } catch (e) {
@@ -1270,6 +1253,7 @@ function ApprovalsPanel() {
     try {
       await api.delete(`/admin/users/${member._id}`);
       toast.success('Member record deleted');
+      invalidateCachedResource('public/stats');
       if (scope === 'modal') setSelected(null);
       load();
     } catch (e) {
@@ -1350,7 +1334,6 @@ function ApprovalsPanel() {
                   <p className="text-xs text-slate-500">+91 {r.phoneNumber}</p>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
                     <StatusBadge status={r.status} />
-                    <PhoneBadge verified={r.phoneVerified} via={r.phoneVerifiedVia} />
                     {r.membershipId && (
                       <span className="text-[11px] font-bold text-gold">{r.membershipId}</span>
                     )}
@@ -1380,24 +1363,16 @@ function ApprovalsPanel() {
                 >
                   View / Edit
                 </button>
-                {r.status === 'PENDING_APPROVAL' &&
-                  (r.phoneVerified ? (
-                    <button
-                      onClick={() => approve(r._id)}
-                      disabled={approvingId === r._id}
-                      className="flex-1 rounded-xl bg-gold py-2 text-xs font-bold text-white transition hover:bg-gold-700 disabled:opacity-60"
-                    >
-                      {approvingId === r._id ? 'Processing...' : 'Approve & Collect Fee'}
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => setSelected(r)}
-                      className="flex-1 rounded-xl bg-amber-400 py-2 text-xs font-bold text-white transition hover:bg-amber-500"
-                      title="Phone not verified via OTP — open review to enable Manual Verification"
-                    >
-                      <FaPhoneAlt className="mr-1 inline" /> Verify & Approve
-                    </button>
-))}
+                {r.status === 'PENDING_APPROVAL' && (
+                  <button
+                    onClick={() => approve(r._id)}
+                    disabled={approvingId === r._id}
+                    className="flex-1 rounded-xl bg-gold py-2 text-xs font-bold text-white transition hover:bg-gold-700 disabled:opacity-60"
+                  >
+                    {approvingId === r._id ? 'Processing...' : 'Approve & Collect Fee'}
+                  </button>
+                )}
+
                 <button
                   onClick={() => removeMember(r)}
                   title="Delete Member"
@@ -1432,7 +1407,6 @@ function ApprovalsPanel() {
 
 function DetailModal({ request, onClose, onApprove, onReject, onDelete, approving }) {
   const [edit, setEdit] = useState(false);
-  const [manualVerify, setManualVerify] = useState(false);
   const [docs, setDocs] = useState({ applicationPdfUrl: '', idCardPdfUrl: '' });
   const [form, setForm] = useState({
     fullName: request.fullName,
@@ -1582,7 +1556,6 @@ function DetailModal({ request, onClose, onApprove, onReject, onDelete, approvin
                 ['Recommender', `${request.recommender?.name || '—'} (${request.recommender?.memberId || '—'})`],
                 ['Applied On', fmt(request.createdAt)],
                 ['Reg No', '12 BTY 6652'],
-                ['Phone Verification', <PhoneBadge verified={request.phoneVerified} via={request.phoneVerifiedVia} />],
               ].map(([k, v]) => (
                 <div key={k} className="flex justify-between gap-4">
                   <span className="font-bold text-slate-500">{k}</span>
@@ -1621,11 +1594,6 @@ function DetailModal({ request, onClose, onApprove, onReject, onDelete, approvin
         <div className="flex flex-wrap gap-2 border-t border-slate-100 p-5">
           {!edit && (
             <>
-              {request.status === 'PENDING_APPROVAL' && !request.phoneVerified && !manualVerify && (
-                <p className="w-full text-[11px] font-bold text-amber-600">
-                  Manual Verification must be enabled above to approve this applicant.
-                </p>
-              )}
               <button
                 onClick={() => setEdit(true)}
                 className="btn-outline flex-1 !py-2 text-sm"
@@ -1641,20 +1609,12 @@ function DetailModal({ request, onClose, onApprove, onReject, onDelete, approvin
                     <FaTimesCircle /> Reject
                   </button>
                   <button
-                    onClick={() => onApprove(request._id, manualVerify)}
-                    disabled={approving || (!request.phoneVerified && !manualVerify)}
+                    onClick={() => onApprove(request._id)}
+                    disabled={approving}
                     className="btn-gold flex-1 !py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
-                    title={
-                      !request.phoneVerified && !manualVerify
-                        ? 'Enable Manual Verification to approve'
-                        : 'Approve application'
-                    }
+                    title="Approve application"
                   >
-                    {approving
-                      ? 'Generating...'
-                      : manualVerify
-                      ? 'Approve (Manual Verification)'
-                      : 'Approve & Collect Fee'}
+                    {approving ? 'Generating...' : 'Approve & Collect Fee'}
                   </button>
                 </>
               )}
