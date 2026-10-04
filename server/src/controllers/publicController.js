@@ -1,9 +1,9 @@
 const config = require('../config/constants');
-const User = require('../models/User');
 const Book = require('../models/Book');
 const BookIssue = require('../models/BookIssue');
 const ProgramMinutes = require('../models/ProgramMinutes');
 const publicCache = require('../services/publicCache');
+const { countApprovedMembers } = require('../services/membershipService');
 
 const ACTIVE_ISSUE_STATUSES = [config.ISSUE_STATUS.ISSUED, config.ISSUE_STATUS.OVERDUE];
 
@@ -40,22 +40,18 @@ function emojiFor(category) {
 }
 
 // "Total Approved Members" / "Active Members" is the club's member roll, so it
-// counts approved *members* — not authority logins.
+// counts approved *members* — not authority logins. The rule now lives in one
+// place, services/membershipService, because it used to be re-derived here, in
+// the member pickers and in the executive roster, and the copies drifted.
 //
-// The previous filter also required role === 'MEMBER', which silently dropped
-// every approved officer: giving someone a designation (or a manual role) moves
-// them to ADMIN via syncDesignationRole, so a Treasurer or President vanished
-// from the total while still appearing in the Approved Members list. Approval
-// status alone decides membership, so the role must not.
-//
-// Requiring a membership ID is what separates real members from authority
-// login accounts, which adminLoginVerify auto-provisions with a phone number
-// as the name and no membership ID. approveRequest always allocates one, and
-// nextMembershipId() and the member pickers already use the same guard.
-const APPROVED_MEMBER_FILTER = {
-  status: config.STATUS.APPROVED,
-  membershipId: { $exists: true, $nin: ['', null] },
-};
+// Two earlier versions of this filter were each wrong in a way that undercounted
+// real members:
+//   - requiring role === 'MEMBER' dropped every approved officer, because a
+//     designation (or a manual role) promotes them to ADMIN;
+//   - then requiring a membershipId dropped any member who reached APPROVED by
+//     another route, since the ID is only allocated by approveRequest.
+// Officers who are real people are members and are counted. Only the synthetic
+// authority-login placeholders are excluded.
 
 // Public reads are identical for every visitor and change rarely, so they are
 // worth caching at the HTTP layer too. `stale-while-revalidate` lets a browser
@@ -63,6 +59,13 @@ const APPROVED_MEMBER_FILTER = {
 // the background, which removes the home page's "Loading catalog..." pause even
 // before the request reaches this process.
 const PUBLIC_CACHE_CONTROL = 'public, max-age=15, stale-while-revalidate=120';
+
+// Stats are different: the member number is the one figure an officer watches to
+// confirm an approval took effect, and the long stale-while-revalidate window
+// above means a reload can keep showing the pre-approval number for over two
+// minutes. A short max-age still absorbs refresh bursts, but must-revalidate
+// forces the browser to confirm with the API rather than reuse a stale body.
+const STATS_CACHE_CONTROL = 'public, max-age=10, must-revalidate';
 
 // The featured strip deliberately rotates, so it cannot carry the long
 // stale-while-revalidate window above: browsers and the CDN would keep serving
@@ -80,21 +83,24 @@ function sendPublic(res, payload, cacheControl = PUBLIC_CACHE_CONTROL) {
 exports.stats = async (req, res) => {
   try {
     const payload = await publicCache.remember('stats', async () => {
-      // Three independent counts: run them concurrently instead of chaining
-      // three sequential round trips on every home page load.
-      const [activeMembers, pending, bookCount] = await Promise.all([
-        User.countDocuments(APPROVED_MEMBER_FILTER),
-        User.countDocuments({ status: config.STATUS.PENDING }),
+      // Two independent counts: run them concurrently instead of chaining two
+      // sequential round trips on every home page load.
+      //
+      // The pending-applicant count that used to be published here is gone along
+      // with the home page card. It was a public, unauthenticated endpoint
+      // reporting how many applications the club is sitting on, which is internal
+      // information no visitor needs.
+      const [activeMembers, bookCount] = await Promise.all([
+        countApprovedMembers(),
         Book.countDocuments(),
       ]);
       return {
         books: bookCount || POPULAR_BOOKS.length * 85,
         activeMembers,
-        pendingApplications: pending,
         years: new Date().getFullYear() - 1985,
       };
     });
-    return sendPublic(res, payload);
+    return sendPublic(res, payload, STATS_CACHE_CONTROL);
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }

@@ -1,8 +1,12 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import api from '../api/client';
+import api, { resolveMedia } from '../api/client';
 import { CLUB, featureEnabled } from '../lib/club';
-import useCachedResource, { FEATURED_CATALOG_KEY, FEATURED_REFRESH_MS } from '../lib/useCachedResource';
+import useCachedResource, {
+  FEATURED_CATALOG_KEY,
+  FEATURED_REFRESH_MS,
+  STATS_REFRESH_MS,
+} from '../lib/useCachedResource';
 import {
   FaBookOpen,
   FaUsers,
@@ -26,9 +30,13 @@ export default function Landing() {
   const { t } = useLocale();
 
   // Stats and the gallery are stable, so they use the default long freshness
-  // window: cached content paints instantly and no request is made at all.
-  const stats = useCachedResource('public/stats', () =>
-    api.get('/public/stats').then((r) => r.data),
+  // window: cached content paints instantly and no request is made at all. The
+  // member count is the exception — it has to reflect a just-approved member, so
+  // it opts into the same short revalidation as the featured strip.
+  const stats = useCachedResource(
+    'public/stats',
+    () => api.get('/public/stats').then((r) => r.data),
+    { revalidateAfter: STATS_REFRESH_MS }
   );
   const gallery = useCachedResource('public/gallery', () =>
     api.get('/public/gallery').then((r) => r.data.albums || []),
@@ -92,12 +100,11 @@ export default function Landing() {
 
       {/* STATS */}
       <section className="relative -mt-8 mx-auto max-w-7xl px-4">
-        <div className="card grid grid-cols-2 gap-6 p-8 lg:grid-cols-4">
-{[
+<div className="card grid grid-cols-2 gap-6 p-8 lg:grid-cols-3">
+          {[
             { icon: FaBookOpen, label: t('stats.booksInLibrary'), value: statsData?.books ?? '...' },
             { icon: FaUsers, label: t('stats.activeMembers'), value: statsData?.activeMembers ?? '...' },
             { icon: FaTrophy, label: t('stats.yearsOfService'), value: statsData?.years ?? '...' },
-            { icon: FaCalendarAlt, label: t('stats.pendingApplications'), value: statsData?.pendingApplications ?? '...' },
           ].map(({ icon: Icon, label, value }, i) => (
             <motion.div
               key={label}
@@ -233,9 +240,18 @@ export default function Landing() {
                 >
                   <div className="aspect-[4/3]">
                     <img
-                      src={a.cover}
+                      src={resolveMedia(a.cover)}
                       alt={a.title}
                       loading="lazy"
+                      // The cover used to be passed to src raw, with no resolver
+                      // and no error handling. Every other media consumer in the
+                      // app runs it through resolveMedia; without that, a
+                      // root-relative /uploads/... path was requested from the
+                      // frontend origin, which returns index.html rather than an
+                      // image, so the home page strip silently showed nothing.
+                      onError={(e) => {
+                        e.currentTarget.style.visibility = 'hidden';
+                      }}
                       className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                     />
                   </div>

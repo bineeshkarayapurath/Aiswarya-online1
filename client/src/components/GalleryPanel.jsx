@@ -3,13 +3,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import api from '../api/client';
 import Spinner from '../components/Spinner';
-import { uploadImages } from '../lib/uploadImages';
 import {
   FaImages,
   FaUpload,
   FaTrashAlt,
   FaTimes,
   FaCamera,
+  FaExclamationTriangle,
   FaChevronLeft,
   FaChevronRight,
 } from 'react-icons/fa';
@@ -53,37 +53,38 @@ export default function GalleryPanel() {
     if (!files.length) return toast.error('Choose at least one photo');
     setUploading(true);
 
-    // Local fallback: current multipart upload handled by the server (multer),
-    // which stores the photos under server storage/ and serves them via /uploads/.
-    const uploadLocal = () => {
+    // Single-request upload: the server's multer middleware accepts the title
+    // alongside the photos in one multipart body, so the album record and its
+    // files are created by the same request.
+    //
+    // This replaced a two-step flow that uploaded the images to /api/upload
+    // first and only then posted their URLs to /admin/gallery. Any failure in
+    // that second step was caught and treated as "falling back to local storage",
+    // so a rejected album reported "Album uploaded (local storage)" while the
+    // photos it had just written were orphaned on disk and never appeared in
+    // the gallery at all.
+    try {
       const fd = new FormData();
       fd.append('title', title.trim());
       files.forEach((f) => fd.append('photos', f));
-      return api.post('/admin/gallery', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-    };
+      // Content-Type is intentionally left to the browser: it must set the
+      // multipart boundary, and setting it by hand produces a request the
+      // server cannot parse.
+      await api.post('/admin/gallery', fd);
 
-    try {
-      try {
-        // Upload via the backend /api/upload endpoint (local storage, or ImgBB
-        // when configured), then persist the returned public HTTPS URLs.
-        const urls = await uploadImages(files);
-        if (urls.length) {
-          await api.post('/admin/gallery', { title: title.trim(), photoUrls: urls });
-          toast.success('Album uploaded');
-        } else {
-          throw new Error('Upload returned no image URLs');
-        }
-      } catch (e) {
-        // Graceful fallback: keep the upload working via local server storage.
-        await uploadLocal();
-        toast.success('Album uploaded (local storage)');
-      }
+      toast.success('Album uploaded');
       setTitle('');
       setFiles([]);
       setPreviews([]);
-      load();
+      await load();
     } catch (e) {
-      toast.error(e.response?.data?.message || e.message || 'Upload failed');
+      toast.error(
+        e.response?.data?.message ||
+          (e.code === 'ERR_NETWORK'
+            ? 'Could not reach the server. The photos were not saved — please try again.'
+            : e.message ||
+              'Upload failed. The photos were not saved — please try again.')
+      );
     } finally {
       setUploading(false);
     }
@@ -203,6 +204,11 @@ export default function GalleryPanel() {
                   <div className="aspect-[4/3] overflow-hidden">
                     <img src={a.cover} alt={a.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
                   </div>
+                  {a.missing > 0 && (
+                    <span className="absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-red-600/90 px-2.5 py-1 text-[11px] font-bold text-white shadow">
+                      <FaExclamationTriangle className="text-[10px]" /> {a.missing} missing
+                    </span>
+                  )}
                   <span className="absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
                     <FaCamera className="text-[10px]" /> {a.count}
                   </span>
@@ -210,6 +216,16 @@ export default function GalleryPanel() {
                     <p className="line-clamp-2 text-sm font-extrabold text-white">{a.title}</p>
                   </div>
                 </button>
+                {a.missing > 0 && (
+                  // The album record survives even when its files do not, so
+                  // without this the photos just render as grey placeholders and
+                  // the officer has no idea the upload was lost.
+                  <p className="border-t border-red-100 bg-red-50 px-3 py-2 text-[11px] font-semibold leading-snug text-red-700">
+                    {a.missing} of {a.count} photo{a.count === 1 ? '' : 's'} could not be found on the
+                    server. They were uploaded but are no longer stored — delete this album and
+                    upload the photos again.
+                  </p>
+                )}
                 <div className="flex items-center justify-between px-3 py-2.5">
                   <span className="text-[11px] font-semibold text-slate-400">
                     {new Date(a.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}

@@ -1,9 +1,6 @@
-const path = require('path');
-const fs = require('fs');
-const { uploadDir } = require('../middleware/upload');
 const config = require('../config/constants');
 const { publicUrl } = require('../utils/storage');
-const { uploadToImgBB } = require('../utils/imgbb');
+const { persistUploadedFiles } = require('../utils/photoStorage');
 
 // Generic image upload endpoint. Files are saved to the server's storage/ dir
 // by multer, then returned as public HTTPS URLs. When an ImgBB API key is
@@ -16,28 +13,13 @@ exports.uploadPhotos = async (req, res) => {
       return res.status(400).json({ message: 'No files received (expected field "photos")' });
     }
 
-    const urls = [];
-    for (const f of files) {
-      const rel = path.join('photos', f.filename);
-      if (config.IMG_BB_API_KEY) {
-        try {
-          const external = await uploadToImgBB({ filePath: f.path, mime: f.mimetype });
-          if (external) {
-            // Hosted externally — remove the local copy.
-            fs.unlink(f.path, () => {});
-            urls.push(external);
-            continue;
-          }
-        } catch (e) {
-          console.warn(`[upload] ImgBB failed for ${f.filename}: ${e.message}. Using local storage.`);
-        }
-      }
-      urls.push(publicUrl(rel));
-    }
+    // Same helper the gallery album endpoint uses, so both make one hosting
+    // decision in one place.
+    const refs = await persistUploadedFiles(files);
 
     return res.status(201).json({
       message: 'Upload complete',
-      urls,
+      urls: refs.map((r) => publicUrl(r)),
       storage: config.IMG_BB_API_KEY ? 'imgbb' : 'local',
     });
   } catch (err) {

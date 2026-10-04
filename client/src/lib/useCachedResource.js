@@ -144,6 +144,12 @@ export const FEATURED_CATALOG_KEY = 'public/catalog?featured=1';
 // without the strip visibly stalling.
 export const FEATURED_REFRESH_MS = 15 * 1000;
 
+// The member total is the one number an officer expects to move the moment they
+// approve someone, so it revalidates on a much shorter window than the default
+// 60 s. The cached value still paints immediately and is replaced in the
+// background, so this costs a request, never a spinner.
+export const STATS_REFRESH_MS = 15 * 1000;
+
 /**
  * @param {string} key                   Stable cache key.
  * @param {() => Promise<any>} fetcher   Request; resolves to the value to cache.

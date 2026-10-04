@@ -2,18 +2,48 @@ const path = require('path');
 const fs = require('fs');
 const config = require('../config/constants');
 const Gallery = require('../models/Gallery');
-const { publicUrl } = require('../utils/storage');
+const { publicUrl, storagePath } = require('../utils/storage');
+const { persistUploadedFiles } = require('../utils/photoStorage');
+
+// How many of an album's photos are referenced in the database but absent from
+// disk. This is the failure the gallery cannot show on its own: the album record
+// is intact and the public page happily lists it, so the photos simply render as
+// grey "Image unavailable" tiles with nothing in the UI explaining why.
+//
+// It happens whenever an upload is written to one storage directory and read from
+// another, or when the host's filesystem is ephemeral and a redeploy discards
+// the files while MongoDB keeps the references. Surfacing the count lets an
+// officer see the damage and re-upload, instead of concluding that the upload
+// never worked.
+//
+// Only local paths are checked. Externally hosted photos (ImgBB / Firebase)
+// are addressed by absolute URL and are not expected to exist on this disk.
+function countMissingFiles(photos) {
+  let missing = 0;
+  for (const rel of photos) {
+    if (/^(https?:)?\/\//i.test(String(rel))) continue;
+    if (!fs.existsSync(storagePath(String(rel).replace(/^\/+/g, '')))) missing += 1;
+  }
+  return missing;
+}
+
+function albumView(a) {
+  return {
+    _id: a._id,
+    title: a.title,
+    count: a.photos.length,
+    cover: a.photos[0] ? publicUrl(a.photos[0]) : '',
+    photos: a.photos.map((p) => publicUrl(p)),
+    createdAt: a.createdAt,
+  };
+}
 
 exports.listAlbums = async (req, res) => {
   try {
     const albums = await Gallery.find().sort({ createdAt: -1 });
     const items = albums.map((a) => ({
-      _id: a._id,
-      title: a.title,
-      count: a.photos.length,
-      cover: a.photos[0] ? publicUrl(a.photos[0]) : '',
-      photos: a.photos.map((p) => publicUrl(p)),
-      createdAt: a.createdAt,
+      ...albumView(a),
+      missing: countMissingFiles(a.photos),
     }));
     return res.json({ albums: items });
   } catch (err) {
@@ -26,15 +56,7 @@ exports.listPublicAlbums = async (req, res) => {
     const albums = await Gallery.find({ 'photos.0': { $exists: true } }).sort({
       createdAt: -1,
     });
-    const items = albums.map((a) => ({
-      _id: a._id,
-      title: a.title,
-      count: a.photos.length,
-      cover: a.photos[0] ? publicUrl(a.photos[0]) : '',
-      photos: a.photos.map((p) => publicUrl(p)),
-      createdAt: a.createdAt,
-    }));
-    return res.json({ albums: items });
+    return res.json({ albums: albums.map(albumView) });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
@@ -45,8 +67,10 @@ exports.createAlbum = async (req, res) => {
     const title = String(req.body.title || '').trim();
     const files = req.files || [];
 
-    // External hosting path: the client uploads photos to POST /api/upload
-    // (local storage or ImgBB) and sends the returned public HTTPS URLs here.
+    // Pre-uploaded URL path: the client uploaded the photos to POST /api/upload
+    // itself and is handing back the URLs it got. Kept for compatibility with
+    // any client that still does this; the bundled panel now posts the files
+    // directly so the album and its photos are created by a single request.
     let externalUrls = [];
     const rawUrls = req.body.photoUrls ?? req.body.firebaseUrls;
     if (rawUrls) {
@@ -57,7 +81,20 @@ exports.createAlbum = async (req, res) => {
           return String(rawUrls).split(',').map((s) => s.trim()).filter(Boolean);
         }
       })();
-      externalUrls = Array.isArray(parsed) ? parsed.filter((u) => /^(https?:\/\/|\/uploads\/)/i.test(String(u))) : [];
+      // Anything that is not an http(s) or /uploads/ URL is rejected. This used
+      // to be a silent filter, so a client sending a shape we did not expect got
+      // "upload at least one photo" with no clue which value was wrong — and the
+      // panel then swallowed that error and reported success anyway.
+      const rejected = Array.isArray(parsed)
+        ? parsed.filter((u) => !/^(https?:\/\/|\/uploads\/)/i.test(String(u)))
+        : [];
+      if (rejected.length) {
+        return res.status(400).json({
+          message: `Unsupported photo URL: ${String(rejected[0])}`,
+          rejected,
+        });
+      }
+      externalUrls = Array.isArray(parsed) ? parsed : [];
     }
 
     if (!title) return res.status(400).json({ message: 'Event / program title is required' });
@@ -65,9 +102,9 @@ exports.createAlbum = async (req, res) => {
       return res.status(400).json({ message: 'Upload at least one photo for the album' });
     }
 
-    const photos = externalUrls.length
-      ? externalUrls
-      : files.map((f) => `photos/${f.filename}`);
+    // Files uploaded with this request go through the same hosting decision as
+    // /api/upload, so external image hosting is honoured either way.
+    const photos = externalUrls.length ? externalUrls : await persistUploadedFiles(files);
 
     const album = await Gallery.create({
       title,
@@ -83,6 +120,7 @@ exports.createAlbum = async (req, res) => {
         count: album.photos.length,
         cover: publicUrl(album.photos[0]),
         photos: album.photos.map((p) => publicUrl(p)),
+        missing: countMissingFiles(album.photos),
       },
     });
   } catch (err) {
