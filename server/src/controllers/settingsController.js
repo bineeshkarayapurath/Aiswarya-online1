@@ -1,5 +1,9 @@
+const fs = require('fs');
+const path = require('path');
+const config = require('../config/constants');
 const ClubSettings = require('../models/ClubSettings');
 const { getClubContact } = require('../services/clubContactService');
+const { publicUrl } = require('../utils/storage');
 
 // Public contact & social details — safe to expose to anonymous visitors and
 // consumed by the website footer.
@@ -75,16 +79,58 @@ exports.getSettings = async (req, res) => {
   }
 };
 
+// Signature images are stored as raw storage references ("photos/x.png") but every
+// other media surface hands the client a servable URL. Normalise here too, so the
+// client never has to guess and a stored path cannot be mistaken for a URL.
+function pickSignatureUrls(doc) {
+  const out = {};
+  SIGNATURE_FIELDS.forEach((f) => {
+    out[f] = publicUrl((doc && doc[f]) || '');
+  });
+  return out;
+}
+
 // Authenticated: fetch only the officer signature URLs. The ID card front/back
 // needs the Secretary's signature, and the settings screen previews both.
 exports.getSignatures = async (req, res) => {
   try {
     const doc = await getOrCreate();
-    return res.json({ signatures: pickSettings(doc, SIGNATURE_FIELDS) });
+    return res.json({ signatures: pickSignatureUrls(doc) });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
 };
+
+// Generated documents embed the officer signatures and the club contact block, but
+// they are written once to a fixed path per member and only regenerated when the
+// file is missing (see memberController.serveFile). Saving a signature would
+// therefore never reach a document that had already been generated - the club
+// would save correctly and still see blank signature rules on every existing
+// certificate. Clearing the cache makes the next download rebuild from current
+// settings. Receipts and vouchers are rendered in the browser, so they were never
+// affected.
+function purgeGeneratedDocuments() {
+  const dir = path.join(config.STORAGE_DIR, 'pdfs');
+  try {
+    if (!fs.existsSync(dir)) return 0;
+    let removed = 0;
+    for (const name of fs.readdirSync(dir)) {
+      // Only the generated application/ID-card PDFs live in this folder.
+      if (!/^(application|idcard)_.+\.pdf$/i.test(name)) continue;
+      try {
+        fs.unlinkSync(path.join(dir, name));
+        removed += 1;
+      } catch (e) {
+        console.warn(`[settings] could not remove ${name}: ${e.message}`);
+      }
+    }
+    if (removed) console.log(`[settings] cleared ${removed} generated PDF(s) so they pick up the new settings`);
+    return removed;
+  } catch (e) {
+    console.warn(`[settings] could not clear generated documents: ${e.message}`);
+    return 0;
+  }
+}
 
 // Admin: update contact, social links and officer signatures (persisted globally)
 exports.updateSettings = async (req, res) => {
@@ -96,10 +142,12 @@ exports.updateSettings = async (req, res) => {
       }
     });
     await doc.save();
+    const purged = purgeGeneratedDocuments();
     return res.json({
       message: 'Settings saved',
       settings: pickSettings(doc),
-      signatures: pickSettings(doc, SIGNATURE_FIELDS),
+      signatures: pickSignatureUrls(doc),
+      documentsCleared: purged,
     });
   } catch (err) {
     return res.status(500).json({ message: err.message });

@@ -32,17 +32,11 @@ function signatureCacheDir() {
 
 // Local storage paths recorded by uploadController/publicUrl(). Accepts a bare
 // relative path, a root-relative "/uploads/..." path, or an absolute URL that
-// happens to point at this server's own /uploads/ mount.
+// happens to point at this server's own /uploads/ mount. Shared with member
+// photos via utils/storage so both resolve identically.
+const { localMediaFile } = require('../utils/storage');
 function localFileFor(stored) {
-  let rel = String(stored).replace(/^https?:\/\/[^/]+/i, '');
-  rel = rel.replace(/^\/+/, '');
-  if (rel.startsWith('uploads/')) rel = rel.slice('uploads/'.length);
-  if (!rel) return null;
-  const abs = path.resolve(config.STORAGE_DIR, rel);
-  // Reject anything that escapes the storage directory.
-  const root = path.resolve(config.STORAGE_DIR);
-  if (abs !== root && !abs.startsWith(root + path.sep)) return null;
-  return fs.existsSync(abs) ? abs : null;
+  return localMediaFile(stored);
 }
 
 function dataUriToBuffer(raw) {
@@ -90,13 +84,32 @@ async function resolveSignatureImage(stored) {
   return localFileFor(raw);
 }
 
+// A signature that is recorded in the settings but cannot be read from disk is
+// almost always an ephemeral host that wiped storage/ on redeploy. Say so
+// loudly in the log rather than letting every document quietly print a blank
+// signature rule, which is what made this look like a template bug.
+let warnedMissing = new Set();
+function warnMissingOnce(raw) {
+  if (warnedMissing.has(raw)) return;
+  warnedMissing.add(raw);
+  console.warn(
+    `[signature] recorded signature "${raw}" is not readable under STORAGE_DIR. ` +
+      'If the host disk is ephemeral the upload is gone - set IMG_BB_API_KEY so signatures ' +
+      'are stored on a CDN instead.',
+  );
+}
+
 // Draw a signature so it rests on the rule underneath it. Returns true when an
 // image was actually embedded — callers use this to decide whether a signature
 // exists at all (an absent signature must not silently produce a blank document
 // that looks signed).
 async function drawSignature(doc, stored, { x, y, w, h }) {
-  const img = await resolveSignatureImage(stored);
-  if (!img) return false;
+  const raw = String(stored || '').trim();
+  const img = await resolveSignatureImage(raw);
+  if (!img) {
+    if (raw) warnMissingOnce(raw);
+    return false;
+  }
   try {
     doc.image(img, x, y, { fit: [w, h], align: 'center', valign: 'bottom' });
     return true;

@@ -801,12 +801,24 @@ const EMPTY_SETTINGS = {
   presidentSignatureUrl: '',
 };
 
-// Single signature slot: preview, replace, clear. Uploading uses the shared
-// /upload endpoint (local storage, or ImgBB when a key is configured); the URL
-// is only persisted when the form is saved.
+// Single signature slot: preview, replace, clear.
+//
+// Uploading persists immediately. This used to only update local form state and
+// rely on a later "Save Settings", which meant a signature could be uploaded,
+// previewed, and then lost on navigating away - leaving every document with a
+// blank signature and no obvious cause. A file upload is a completed action on
+// its own, so it now writes through to the server and invalidates the cache.
 function SignatureField({ field, value, onChange }) {
   const [busy, setBusy] = useState(false);
   const inputRef = useRef(null);
+
+  const persist = async (url) => {
+    const res = await api.put('/admin/settings', { [field.key]: url });
+    onChange((res.data.settings && res.data.settings[field.key]) || url);
+    // Cards, receipts and documents already on screen must pick up the new image.
+    invalidateClubSignatures();
+    return res;
+  };
 
   const pick = async (e) => {
     const file = e.target.files?.[0];
@@ -814,17 +826,29 @@ function SignatureField({ field, value, onChange }) {
     setBusy(true);
     try {
       const [url] = await uploadImages([file]);
-      if (url) {
-        onChange(url);
-        toast.success(`${field.label} uploaded — remember to save`);
-      } else {
+      if (!url) {
         toast.error('Signature upload failed');
+        return;
       }
-    } catch {
-      toast.error('Signature upload failed');
+      await persist(url);
+      toast.success(`${field.label} uploaded and saved`);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not save the signature');
     } finally {
       setBusy(false);
       if (inputRef.current) inputRef.current.value = '';
+    }
+  };
+
+  const clear = async () => {
+    setBusy(true);
+    try {
+      await persist('');
+      toast.success(`${field.label} removed`);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Could not remove the signature');
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -860,7 +884,7 @@ function SignatureField({ field, value, onChange }) {
           {value && (
             <button
               type="button"
-              onClick={() => onChange('')}
+              onClick={clear}
               disabled={busy}
               className="btn-outline !py-2 text-xs !text-red-600"
             >
@@ -948,11 +972,11 @@ function SettingsPanel() {
           <FaSignature className="text-gold" /> Officer Signatures
         </h4>
         <p className="mt-1 text-sm text-slate-500">
-          Upload a transparent PNG of each officer&rsquo;s signature. They are applied automatically
-          wherever an authorised signature is required — the Secretary&rsquo;s appears on the back of
-          every digital ID card and on the signatory block of every receipt and voucher, and both are
-          appended to official PDF documents and letterheads.
-          Uploading is not enough on its own: press Save Settings to store the new signature.
+          Upload a transparent PNG of each officer&rsquo;s signature. Saving is immediate &mdash; each
+          image is stored as soon as it is chosen, and applied automatically wherever an authorised
+          signature is required: the Secretary&rsquo;s appears on the back of every digital ID card
+          and on the signatory block of every receipt and voucher, and both are appended to official
+          PDF documents and letterheads.
         </p>
 
         <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">

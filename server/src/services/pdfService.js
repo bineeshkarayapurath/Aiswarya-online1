@@ -3,7 +3,7 @@ const QRCode = require('qrcode');
 const path = require('path');
 const fs = require('fs');
 const config = require('../config/constants');
-const { pdfDir, qrDir } = require('../utils/storage');
+const { pdfDir, qrDir, localMediaFile } = require('../utils/storage');
 const { drawSignature, getClubSignatures } = require('./signatureService');
 const { getClubContact } = require('./clubContactService');
 
@@ -253,8 +253,8 @@ async function generateApplicationPdf(user, { approvedBy = '', approvedAt = null
 
   // Photo
   if (user.photoUrl) {
-    const photoAbs = path.resolve(config.STORAGE_DIR, user.photoUrl);
-    if (fs.existsSync(photoAbs)) {
+    const photoAbs = localMediaFile(user.photoUrl);
+    if (photoAbs) {
       doc.image(photoAbs, photoX, photoY, { fit: [photoW, photoH] });
       doc.rect(photoX, photoY, photoW, photoH).lineWidth(1).strokeColor(grey).stroke();
     } else {
@@ -409,8 +409,8 @@ async function generateIdCardPdf(user) {
 
   doc.rect(photoX, photoY, photoW, photoH).fill('#e8e2d1');
   if (user.photoUrl) {
-    const photoAbs = path.resolve(config.STORAGE_DIR, user.photoUrl);
-    if (fs.existsSync(photoAbs)) {
+    const photoAbs = localMediaFile(user.photoUrl);
+    if (photoAbs) {
       doc.image(photoAbs, photoX, photoY, { fit: [photoW, photoH], align: 'center', valign: 'center' });
     }
   }

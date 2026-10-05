@@ -30,4 +30,28 @@ function storagePath(relativePath) {
   return path.join(config.STORAGE_DIR, String(relativePath));
 }
 
-module.exports = { pdfDir, qrDir, publicUrl, storagePath };
+// Resolve a stored media reference to a real absolute path inside STORAGE_DIR.
+// Accepts every shape the upload pipeline can produce: a bare relative path
+// ("photos/x.jpg"), a root-relative "/uploads/photos/x.jpg", or an absolute URL
+// pointing back at this server. Returns null when it cannot be resolved to a
+// file that exists, so callers fall back instead of embedding a broken image.
+//
+// Do not replace this with path.resolve(STORAGE_DIR, stored): a leading slash
+// makes the second argument absolute, so path.resolve discards STORAGE_DIR
+// entirely and looks for C:\uploads\x.jpg. That is why member photos silently
+// never appeared on generated PDFs.
+function localMediaFile(stored) {
+  if (!stored) return null;
+  let rel = String(stored).replace(/\\/g, '/');
+  rel = rel.replace(/^https?:\/\/[^/]+/i, '');
+  rel = rel.replace(/^\/+/, '');
+  if (rel.startsWith('uploads/')) rel = rel.slice('uploads/'.length);
+  if (!rel) return null;
+  const root = path.resolve(config.STORAGE_DIR);
+  const abs = path.resolve(root, rel);
+  // Refuse anything that escapes the storage directory.
+  if (abs !== root && !abs.startsWith(root + path.sep)) return null;
+  return fs.existsSync(abs) ? abs : null;
+}
+
+module.exports = { pdfDir, qrDir, publicUrl, storagePath, localMediaFile };
