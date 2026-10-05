@@ -106,10 +106,61 @@ embed: local storage paths directly, remote (ImgBB) URLs downloaded once and cac
 `storage/signatures/`. A document is never given a blank line where a signature is expected —
 if nothing is configured the block is simply omitted.
 
+## Deployment
+
+The API is a Node service that can also serve the built client, so there are two valid
+topologies. Pick one — mixing them is what produces a custom domain that 404s.
+
+**A. One host serves everything** (custom domain pointed at the API host).
+
+The custom domain must resolve to the API service, and that service must actually build the
+client. `client/dist` is gitignored, so it exists on the host only if the host's build
+command runs `npm --prefix client run build`. Until it does, `server.js` answers `/api/*`
+perfectly while every other path 404s — the API being healthy proves nothing about the
+frontend. Render settings:
+
+- Root Directory: the repo root (not `server/`)
+- Build Command: `npm --prefix client ci && npm --prefix client run build && npm --prefix server ci`
+- Start Command: `node server/server.js`
+
+The custom domain then works same-origin with no CORS involvement at all.
+
+**B. Frontend on Vercel, API on Render** (the current setup).
+
+The custom domain belongs on the **Vercel** project, not on Render. A `CNAME` pointing at
+`*.onrender.com` sends visitors to the API host, which has no frontend to serve them and
+returns `Cannot GET /`. Add the domain under Vercel → Settings → Domains instead; the
+client keeps calling the API cross-origin at `VITE_API_BASE_URL`.
+
+Under topology B the API must allow the frontend's origin, or every response is discarded
+by the browser and the page renders empty:
+
+```bash
+CLIENT_URLS=https://www.example.com    # exact scheme+host+port, comma separated
+```
+
+Matching is exact — there is no wildcard. A request whose `Origin` equals this server's own
+`Host` is treated as same-origin and allowed regardless, so topology A needs no
+configuration.
+
+**Diagnosing a 404 on a custom domain.** `curl -i https://<domain>/` and read the body:
+
+| Response | Meaning |
+| --- | --- |
+| `Cannot GET /` from Express | Request reached this server; it has no client build (topology B, or a missing build command) |
+| `503` + plain-text path | Deployed build of this code; the dist directory is missing — the text names the expected path |
+| Render/Cloudflare error page | The domain is not attached to this service at all |
+
+**The `content-security-policy: default-src 'none'` header on those error pages comes from
+Render's edge, not from this application.** No CSP header is set anywhere in this codebase,
+and one must not be added carelessly: the client loads Google Fonts and writes inline
+`style` attributes (framer-motion, jspdf), so a strict `style-src` without `'unsafe-inline'`
+breaks the UI. A CSP error in the console is nearly always a cross-origin response the
+browser rejected — check the CORS allowlist above first.
+
 ## Development
 
 Frontend dev server proxies `/api` → backend via `vite.config.js`.
-
 ```bash
 # Server
 cd server
@@ -125,7 +176,7 @@ npm run dev            # http://localhost:5173
 ### Environment
 
 - **server**: `.env` — `MONGO_URI`, `JWT_SECRET`, `PUBLIC_API_URL`, `CLIENT_URLS`,
-  `BCRYPT_SALT_ROUNDS`, `PASSWORD_MIN_LENGTH`, `PASSWORD_MAX_LENGTH`, `IMG_BB_API_KEY`,
+  `CLIENT_DIST_DIR`, `BCRYPT_SALT_ROUNDS`, `PASSWORD_MIN_LENGTH`, `PASSWORD_MAX_LENGTH`, `IMG_BB_API_KEY`,
   `MEMBERSHIP_PREFIX`, `SUPER_ADMIN_PHONES`, and the optional AI Book Assistant keys
   (`AI_API_KEY`, `AI_BASE_URL`, `AI_MODEL`, `AI_TIMEOUT_MS`, `AI_MAX_PER_HOUR`).
   See `server/.env.example`.

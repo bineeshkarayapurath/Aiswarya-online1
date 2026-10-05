@@ -7,19 +7,41 @@ const path = require('path');
 // server/ directory.
 const SERVER_ROOT = path.join(__dirname, '..', '..');
 
+// The repo root, one level above server/. Client paths resolve against this
+// rather than the process cwd, for the same reason STORAGE_DIR does.
+const REPO_ROOT = path.join(SERVER_ROOT, '..');
+
+function resolveAgainst(base, value) {
+  const raw = String(value || '').trim();
+  if (!raw) return base;
+  return path.isAbsolute(raw) ? path.normalize(raw) : path.resolve(base, raw);
+}
+
 function resolveStorageDir(value) {
   const raw = String(value || '').trim();
   if (!raw) return path.join(SERVER_ROOT, 'storage');
-  return path.isAbsolute(raw) ? path.normalize(raw) : path.resolve(SERVER_ROOT, raw);
+  return resolveAgainst(SERVER_ROOT, raw);
 }
 
 // Comma-separated allowlist of frontend origins (dev + production Vercel).
 // These are ALWAYS allowed; CLIENT_URLS/CLIENT_URL on the server (Render) can
 // only ADD to the list, never remove the known deployments.
+//
+// The club's custom domain belongs here. The frontend is deployed on Vercel but
+// reached in production through https://www.aiswaryakuppakolly.online, and that
+// is the origin the browser sends to the API on Render - the Vercel *.vercel.app
+// host was never part of those requests. Leaving the custom domain out meant
+// every login came back with no Access-Control-Allow-Origin header and the
+// browser discarded it, which reported as "the whole site is broken" rather than
+// as the CORS miss it was. The apex (non-www) is listed too because a visitor
+// who omits the www lands on the other host and the allowlist is an exact
+// scheme+host+port match, not a wildcard.
 const DEFAULT_CLIENT_URLS = [
   'http://localhost:5173',
   'http://127.0.0.1:5173',
   'https://aiswarya-online1.vercel.app',
+  'https://www.aiswaryakuppakolly.online',
+  'https://aiswaryakuppakolly.online',
 ];
 
 const envOrigins = [process.env.CLIENT_URLS, process.env.CLIENT_URL]
@@ -76,6 +98,21 @@ module.exports = {
   // Resolving against the server package root instead makes the location
   // independent of where the process happens to be launched from.
   STORAGE_DIR: resolveStorageDir(process.env.STORAGE_DIR),
+  // Where the built client bundle lives, i.e. the directory containing the
+  // index.html that express.static serves and the SPA fallback falls back to.
+  //
+  // Defaults to <repo>/client/dist, which is what `npm run build` inside
+  // client/ produces, and is anchored to the repo root so it does not depend on
+  // the directory the process was started from (or on Render's Root Directory
+  // setting being server/ rather than the repo root).
+  //
+  // Override with CLIENT_DIST_DIR when a host's build step writes the bundle
+  // somewhere else - a CI job that publishes dist/ next to server/, or an
+  // artifact directory. The 404-everything symptom of a wrong path here is
+  // indistinguishable from "the custom domain is not mapped", so it is worth
+  // being able to correct from the dashboard instead of a redeploy of new code.
+  CLIENT_DIST_DIR: resolveAgainst(REPO_ROOT, process.env.CLIENT_DIST_DIR || 'client/dist'),
+
   // Optional free hosting for uploaded images (ImgBB). When empty, uploads are
   // kept on the server's local storage and served via /uploads/.
   IMG_BB_API_KEY: process.env.IMG_BB_API_KEY || '',
