@@ -92,7 +92,11 @@ module.exports = {
   // With no key the feature reports itself as unconfigured rather than failing
   // with a confusing upstream error.
   AI: {
-    apiKey: (process.env.AI_API_KEY || '').trim(),
+    // .trim() handles a stray newline from copy-paste. Surrounding quotes are
+    // stripped too: a dashboard or shell that stores AI_API_KEY="AIza..." sends
+    // those quote characters to the provider verbatim, which comes back as a
+    // baffling 401 "API key not valid" rather than an obvious config error.
+    apiKey: (process.env.AI_API_KEY || '').trim().replace(/^["'](.*)["']$/, '$1'),
     baseUrl: (process.env.AI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, ''),
     model: process.env.AI_MODEL || 'gpt-4o-mini',
     timeoutMs: parseInt(process.env.AI_TIMEOUT_MS || '25000', 10),
