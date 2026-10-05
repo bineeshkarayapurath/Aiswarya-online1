@@ -221,8 +221,13 @@ Three things make a non-deterministic model safe to render directly:
   calls that actually reached the model (cached repeats are free), and `aiLimiter` adds a
   per-user/IP brake on top. Answers are cached in memory for six hours, keyed on title + author,
   which absorbs the repeated popular-title questions without touching the provider.
-- **Nothing upstream leaks.** Provider error bodies routinely echo key fragments and account
-  details, so only the HTTP status is logged, and the client is given a plain-language message.
+- **Provider error bodies routinely echo key fragments and account details**, so only the HTTP
+  status is ever logged and the client is given a plain-language message.
+- **Not every compatible provider accepts every parameter.** `response_format` is sent on the
+  first attempt and, if the provider rejects it with a 400, the request is retried once without it
+  (the parser already handles JSON wrapped in prose). 404 and 400 are treated as misconfiguration
+  and report that `AI_BASE_URL` / `AI_MODEL` need checking, rather than as a transient failure to
+  retry pointlessly.
 
 With `AI_API_KEY` unset the feature reports itself as unconfigured (`503`, and a short
 `GET /api/member/book-assistant` status probe) and the dashboard shows what an administrator needs

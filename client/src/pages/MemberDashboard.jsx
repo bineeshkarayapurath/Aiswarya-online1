@@ -265,10 +265,10 @@ export default function MemberDashboard() {
       {featureEnabled('enableCatalog') && (
         <>
           <div className="mt-10 border-t border-slate-200 pt-10">
-            <PublicCatalog />
+            <BookAssistant />
           </div>
           <div className="mt-10 border-t border-slate-200 pt-10">
-            <BookAssistant />
+            <PublicCatalog />
           </div>
         </>
       )}

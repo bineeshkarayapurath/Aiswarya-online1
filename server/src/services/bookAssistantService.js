@@ -145,10 +145,25 @@ function extractJson(text) {
   }
 }
 
-async function callModel(title, author) {
+// `responseFormat` is optional because not every OpenAI-compatible provider
+// accepts it: Gemini's endpoint takes json_object, but others reject the field
+// with a 400. Dropping it is safe here because extractJson() copes with JSON
+// wrapped in prose or fences anyway.
+async function callModel(title, author, { responseFormat = true } = {}) {
   const userText = author
     ? `Book title: ${title}\nAuthor (use as a hint only, the member may have misspelled it): ${author}`
     : `Book title: ${title}`;
+
+  const requestBody = {
+    model: config.AI.model,
+    temperature: 0.4,
+    max_tokens: 1200,
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: userText },
+    ],
+  };
+  if (responseFormat) requestBody.response_format = { type: 'json_object' };
 
   let res;
   try {
@@ -158,17 +173,7 @@ async function callModel(title, author) {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${config.AI.apiKey}`,
       },
-      body: JSON.stringify({
-        model: config.AI.model,
-        temperature: 0.4,
-        max_tokens: 1200,
-        // Ask for JSON where the provider supports it; the parser copes either way.
-        response_format: { type: 'json_object' },
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: userText },
-        ],
-      }),
+      body: JSON.stringify(requestBody),
       signal: AbortSignal.timeout(config.AI.timeoutMs),
     });
   } catch (e) {
@@ -184,6 +189,22 @@ async function callModel(title, author) {
     // the API key and account details, so it must never reach the log or the
     // response.
     console.warn(`[book-assistant] upstream responded ${res.status}`);
+    // 404 and 400 are almost always a misconfigured base URL or model id rather
+    // than anything the member did, so they get an actionable message.
+    if (res.status === 404) {
+      throw new AssistantError(
+        'bad_endpoint',
+        502,
+        'The AI service could not find that endpoint or model. Check AI_BASE_URL and AI_MODEL.',
+      );
+    }
+    if (res.status === 400) {
+      throw new AssistantError(
+        'rejected',
+        502,
+        'The AI service rejected the request. Check that AI_MODEL is a valid model for AI_BASE_URL.',
+      );
+    }
     const message =
       res.status === 401 || res.status === 403
         ? 'The AI service rejected the configured API key.'
@@ -224,17 +245,29 @@ async function describeBook({ title, author }) {
   const cached = cacheGet(key);
   if (cached) return { ...cached, cached: true };
 
-  // One retry: models occasionally wrap JSON in prose or refuse the
-  // json_object hint, and that is usually recoverable.
+  // Two fallback attempts, each for a different reason:
+  //   1. drop response_format, for a provider that rejects the field
+  //   2. resend once, for a model that simply produced unusable output
+  // Both are cheap compared with showing a member an error they cannot act on.
+  const attempts = [
+    { responseFormat: true },
+    { responseFormat: false },
+  ];
   let lastError;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  for (const attempt of attempts) {
     try {
-      const value = normalise(await callModel(cleanTitle, cleanAuthor), cleanTitle, cleanAuthor);
+      const value = normalise(await callModel(cleanTitle, cleanAuthor, attempt), cleanTitle, cleanAuthor);
+      if (lastError) console.warn(`[book-assistant] recovered on retry without response_format`);
       cacheSet(key, value);
       return { ...value, cached: false };
     } catch (e) {
       lastError = e;
-      if (!(e instanceof AssistantError) || e.code === 'timeout' || e.code === 'unreachable') throw e;
+      if (!(e instanceof AssistantError)) throw e;
+      // Connection-level problems are not worth repeating, and a rejected key or
+      // endpoint will fail identically no matter which body we send.
+      if (['timeout', 'unreachable', 'not_configured', 'missing_title', 'bad_endpoint', 'upstream'].includes(e.code)) {
+        throw e;
+      }
     }
   }
   throw lastError;
