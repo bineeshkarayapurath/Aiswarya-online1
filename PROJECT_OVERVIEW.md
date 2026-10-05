@@ -126,7 +126,9 @@ npm run dev            # http://localhost:5173
 
 - **server**: `.env` — `MONGO_URI`, `JWT_SECRET`, `PUBLIC_API_URL`, `CLIENT_URLS`,
   `BCRYPT_SALT_ROUNDS`, `PASSWORD_MIN_LENGTH`, `PASSWORD_MAX_LENGTH`, `IMG_BB_API_KEY`,
-  `MEMBERSHIP_PREFIX`, `SUPER_ADMIN_PHONES`. See `server/.env.example`.
+  `MEMBERSHIP_PREFIX`, `SUPER_ADMIN_PHONES`, and the optional AI Book Assistant keys
+  (`AI_API_KEY`, `AI_BASE_URL`, `AI_MODEL`, `AI_TIMEOUT_MS`, `AI_MAX_PER_HOUR`).
+  See `server/.env.example`.
 - **client**: `.env` — `VITE_API_BASE_URL` (`/api` in dev, absolute Render URL in production).
 
 ### Authentication
@@ -193,3 +195,35 @@ account is told to register first.
 
 `server.js` refuses to boot in production if `JWT_SECRET` is missing or left at its default, or if
 `SUPER_ADMIN_PHONES` is empty.
+
+### AI Book Assistant
+
+`POST /api/member/book-assistant` takes `{ title, author? }` and returns a summary, author, genre,
+published year, language, themes, key points, reading level, estimated reading time, three to four
+"read next" recommendations with reasons, and club discussion questions. It sits under the member
+dashboard next to the catalogue, gated by `enableCatalog` and by `requireAuth` + `requireMember`, so
+only members with an approved application can spend provider quota.
+
+It is deliberately **provider-agnostic**: `bookAssistantService` posts to
+`{AI_BASE_URL}/chat/completions` with an `Authorization: Bearer` header, so OpenAI, OpenRouter, Groq,
+Gemini's OpenAI-compatible endpoint, or a local Ollama all work by changing two env values. The key
+never reaches the browser.
+
+Three things make a non-deterministic model safe to render directly:
+
+- **The response is validated, not trusted.** The model is asked for strict JSON, but the parser also
+  accepts JSON wrapped in code fences or surrounded by prose, and every field is then coerced to a
+  sane type and length. A missing genre becomes `Unclassified`, an invented reading level becomes
+  `Moderate`, a non-numeric reading time is dropped rather than rendered as `NaN`, and a list
+  returned as a bare string becomes a one-item list. A sparse or chatty answer degrades into a usable
+  panel instead of throwing.
+- **Costs are bounded twice.** A per-member hourly quota in `bookAssistantController` counts only
+  calls that actually reached the model (cached repeats are free), and `aiLimiter` adds a
+  per-user/IP brake on top. Answers are cached in memory for six hours, keyed on title + author,
+  which absorbs the repeated popular-title questions without touching the provider.
+- **Nothing upstream leaks.** Provider error bodies routinely echo key fragments and account
+  details, so only the HTTP status is logged, and the client is given a plain-language message.
+
+With `AI_API_KEY` unset the feature reports itself as unconfigured (`503`, and a short
+`GET /api/member/book-assistant` status probe) and the dashboard shows what an administrator needs
+to add. No upstream call is made, so an unconfigured deployment behaves normally.

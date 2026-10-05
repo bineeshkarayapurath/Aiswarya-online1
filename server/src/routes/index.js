@@ -2,8 +2,9 @@ const express = require('express');
 const upload = require('../middleware/upload');
 const { galleryUpload } = upload;
 const { requireAuth, requireSuperAdmin, requireMember, requireDesignations, requireOfficerOrAdmin } = require('../middleware/auth');
-const { authLimiter } = require('../middleware/rateLimit');
+const { authLimiter, aiLimiter } = require('../middleware/rateLimit');
 const auth = require('../controllers/authController');
+const bookAssistant = require('../controllers/bookAssistantController');
 const admin = require('../controllers/adminController');
 const member = require('../controllers/memberController');
 const pub = require('../controllers/publicController');
@@ -279,6 +280,12 @@ router.post('/admin/issues/:id/return', requireAuth, requireOfficerOrAdmin(['Lib
 // Member
 router.get('/member/profile', requireAuth, requireMember, member.myProfile);
 router.get('/member/document/:type', requireAuth, requireMember, member.serveFile);
+
+// AI Book Assistant - approved members only. aiLimiter is a coarse per-IP brake
+// on top of the controller's per-member hourly quota, because every question
+// costs money at the provider.
+router.get('/member/book-assistant', requireAuth, requireMember, bookAssistant.status);
+router.post('/member/book-assistant', requireAuth, requireMember, aiLimiter, bookAssistant.ask);
 router.get('/vouchers/my-receipts', requireAuth, requireMember, vouchers.myReceipts);
 router.get('/member/committee', requireAuth, requireMember, committee.myCommitteeDashboard);
 router.get('/member/programs', requireAuth, requireMember, committee.listMyPrograms);

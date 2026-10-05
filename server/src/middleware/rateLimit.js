@@ -1,4 +1,4 @@
-const rateLimit = require('express-rate-limit');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 
 // Throttling for the unauthenticated credential endpoints.
 //
@@ -55,4 +55,29 @@ const authLimiter = rateLimit({
   },
 });
 
-module.exports = { authLimiter, WINDOW_MS, MAX_FAILURES };
+// Coarse per-IP brake on the AI Book Assistant, layered over the controller's
+// per-member hourly quota. Unlike authLimiter this counts every request,
+// including successes, because each one bills the provider. Keyed per user id
+// when available so a whole club hall on one wifi does not share a budget, with
+// the IP as the fallback for unauthenticated traffic.
+const aiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 30,
+  keyGenerator: (req, res) => {
+    const id = req.user && req.user._id;
+    // ipKeyGenerator (not raw req.ip) normalises IPv6 to its /64 subnet, so a
+    // client cycling through its own address space cannot reset the counter.
+    return id ? `u${id}` : `ip${ipKeyGenerator(req.ip)}`;
+  },
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: {
+    message: 'Too many questions at once. Please wait a minute and try again.',
+  },
+  handler: (req, res, next, options) => {
+    res.setHeader('Retry-After', Math.ceil(options.windowMs / 1000));
+    res.status(options.statusCode).json(options.message);
+  },
+});
+
+module.exports = { authLimiter, aiLimiter, WINDOW_MS, MAX_FAILURES };

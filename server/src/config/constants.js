@@ -79,6 +79,26 @@ module.exports = {
   // Optional free hosting for uploaded images (ImgBB). When empty, uploads are
   // kept on the server's local storage and served via /uploads/.
   IMG_BB_API_KEY: process.env.IMG_BB_API_KEY || '',
+
+  // AI Book Assistant.
+  //
+  // Deliberately provider-agnostic: anything exposing an OpenAI-compatible
+  // POST {base}/chat/completions works, so the club is not tied to one vendor.
+  //   OpenAI      AI_BASE_URL=https://api.openai.com/v1
+  //   OpenRouter  AI_BASE_URL=https://openrouter.ai/api/v1
+  //   Groq        AI_BASE_URL=https://api.groq.com/openai/v1
+  //   Gemini      AI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
+  //   Ollama      AI_BASE_URL=http://127.0.0.1:11434/v1  (AI_API_KEY can be "ollama")
+  // With no key the feature reports itself as unconfigured rather than failing
+  // with a confusing upstream error.
+  AI: {
+    apiKey: (process.env.AI_API_KEY || '').trim(),
+    baseUrl: (process.env.AI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, ''),
+    model: process.env.AI_MODEL || 'gpt-4o-mini',
+    timeoutMs: parseInt(process.env.AI_TIMEOUT_MS || '25000', 10),
+    // Each question costs money, so a signed-in member is capped per hour.
+    maxPerHour: parseInt(process.env.AI_MAX_PER_HOUR || '20', 10),
+  },
   COMMITTEES: {
     VANITHA: 'Vanitha Vedi',
     BALA: 'Bala Vedi',

@@ -9,6 +9,7 @@ import PublicCatalog from '../components/PublicCatalog';
 import { StatusBadge } from '../components/StatusBadge';
 import CommitteeManagementPanel from '../components/CommitteeManagementPanel';
 import MemberReceipts from '../components/MemberReceipts';
+import BookAssistant from '../components/BookAssistant';
 import { featureEnabled, subcommitteeEnabled, CLUB } from '../lib/club';
 import { roleLabel } from '../lib/permissions';
 import {
@@ -262,9 +263,14 @@ export default function MemberDashboard() {
         </div>
       )}
       {featureEnabled('enableCatalog') && (
-        <div className="mt-10 border-t border-slate-200 pt-10">
-          <PublicCatalog />
-        </div>
+        <>
+          <div className="mt-10 border-t border-slate-200 pt-10">
+            <PublicCatalog />
+          </div>
+          <div className="mt-10 border-t border-slate-200 pt-10">
+            <BookAssistant />
+          </div>
+        </>
       )}
       {showPdf && <ApplicationPDF user={m} onClose={() => setShowPdf(false)} />}
     </div>
