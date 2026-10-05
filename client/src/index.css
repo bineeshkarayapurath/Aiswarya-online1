@@ -24,6 +24,12 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Native widgets (scrollbars, date pickers, select menus) follow the theme too,
+   otherwise a dark page still shows a white scrollbar and a white date picker. */
+html.dark {
+  color-scheme: dark;
+}
+
 body {
   @apply bg-slate-50 text-slate-800 antialiased dark:bg-emerald-950 dark:text-slate-100;
   font-family: 'Plus Jakarta Sans', 'Manrope', 'Noto Sans Malayalam', system-ui, sans-serif;
@@ -122,19 +128,174 @@ td {
     color: var(--dark-text-dim) !important;
   }
 
+  /* ---- Theme greens (the brand colour) -----------------------------------
+     emerald is remapped to the club's primary palette, where 600-950 are all
+     very dark greens. They are the most-used text colour in the app (every
+     heading), and with no override they rendered dark-on-dark and vanished.
+     These map to the light mint ramp instead. */
+  .dark .text-emerald-950,
+  .dark .text-emerald-900 {
+    color: var(--dark-text-bright) !important;
+  }
+  .dark .text-emerald-800,
+  .dark .text-emerald-700,
+  .dark .text-emerald-600 {
+    color: var(--dark-text) !important;
+  }
+
+  /* ---- Other palettes ---------------------------------------------------
+     Status and label colours are used at 600-800 throughout. On a dark
+     surface those mid-tones are too dim to read, so lift each one to its
+     300-ish equivalent. These are stock Tailwind hues, not themed, so they
+     are written literally. */
+  .dark .text-red-800,
+  .dark .text-red-700,
+  .dark .text-red-600,
+  .dark .text-red-500 {
+    color: #fca5a5 !important;
+  }
+  .dark .text-rose-800,
+  .dark .text-rose-700,
+  .dark .text-rose-600 {
+    color: #fda4af !important;
+  }
+  .dark .text-orange-800 {
+    color: #fdba74 !important;
+  }
+  .dark .text-amber-800,
+  .dark .text-amber-700,
+  .dark .text-amber-500 {
+    color: #fcd34d !important;
+  }
+  .dark .text-lime-700 {
+    color: #bef264 !important;
+  }
+  .dark .text-emerald-500 {
+    color: #6ee7b7 !important;
+  }
+  .dark .text-teal-800,
+  .dark .text-teal-700 {
+    color: #5eead4 !important;
+  }
+  .dark .text-cyan-800 {
+    color: #67e8f9 !important;
+  }
+  .dark .text-sky-800,
+  .dark .text-sky-700 {
+    color: #7dd3fc !important;
+  }
+  .dark .text-indigo-700 {
+    color: #a5b4fc !important;
+  }
+  .dark .text-violet-800,
+  .dark .text-violet-700 {
+    color: #c4b5fd !important;
+  }
+  .dark .text-purple-700 {
+    color: #d8b4fe !important;
+  }
+  .dark .text-fuchsia-800 {
+    color: #f0abfc !important;
+  }
+  .dark .text-pink-800,
+  .dark .text-pink-700 {
+    color: #f9a8d4 !important;
+  }
+
+  /* ---- Surfaces --------------------------------------------------------
+     Light fills used as panel or chip backgrounds. Left alone they became
+     bright blocks carrying now-bright text, which is just as unreadable. */
+  .dark .bg-slate-100,
+  .dark .bg-slate-200 {
+    background-color: var(--dark-surface-alt) !important;
+  }
+  .dark .bg-slate-300 {
+    background-color: var(--dark-border) !important;
+  }
+  /* Translucent variants need their own rules: the class name differs, so the
+     solid .dark .bg-slate-50 selector never matched them. */
+  .dark .bg-slate-50\/50,
+  .dark .bg-slate-50\/60,
+  .dark .bg-slate-50\/70 {
+    background-color: var(--dark-surface-alt) !important;
+  }
+  .dark .bg-emerald-50 {
+    background-color: rgba(6, 78, 59, 0.4) !important;
+  }
+  .dark .bg-emerald-50\/60 {
+    background-color: rgba(6, 78, 59, 0.4) !important;
+  }
+  .dark .bg-emerald-100 {
+    background-color: rgba(6, 78, 59, 0.5) !important;
+  }
+
+  /* ---- Borders and dividers -------------------------------------------- */
+  .dark .border-slate-300 {
+    border-color: var(--dark-border) !important;
+  }
+  .dark .border-emerald-200,
+  .dark .border-emerald-800,
+  .dark .border-emerald-900 {
+    border-color: var(--dark-border) !important;
+  }
+  /* Table row separators are drawn with divide-*, which is a different
+     property to border-color and was never remapped. */
+  .dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+  .dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+    border-color: var(--dark-border-soft) !important;
+  }
+
   @media print {
-    .dark .bg-white {
+    .dark .bg-white,
+    .dark .bg-slate-50,
+    .dark .bg-slate-100,
+    .dark .bg-slate-200,
+    .dark .bg-slate-50\/60,
+    .dark .bg-slate-50\/70,
+    .dark .bg-slate-50\/50,
+    .dark .bg-emerald-50,
+    .dark .bg-emerald-100 {
       background-color: #fff !important;
     }
-    .dark .bg-slate-50 {
-      background-color: #fff !important;
-    }
+    /* Only the shades that are dark enough to be lost on white paper. The 300s
+       and lighter are already legible on white and are left alone. Inline
+       styles used by the receipt/voucher document are not utilities, so they
+       keep their own colours. */
     .dark .text-slate-900,
     .dark .text-slate-800,
     .dark .text-slate-700,
     .dark .text-slate-600,
     .dark .text-slate-500,
-    .dark .text-slate-400 {
+    .dark .text-slate-400,
+    .dark .text-emerald-950,
+    .dark .text-emerald-900,
+    .dark .text-emerald-800,
+    .dark .text-emerald-700,
+    .dark .text-emerald-600,
+    .dark .text-red-800,
+    .dark .text-red-700,
+    .dark .text-red-600,
+    .dark .text-red-500,
+    .dark .text-rose-800,
+    .dark .text-rose-700,
+    .dark .text-rose-600,
+    .dark .text-orange-800,
+    .dark .text-amber-800,
+    .dark .text-amber-700,
+    .dark .text-amber-500,
+    .dark .text-lime-700,
+    .dark .text-teal-800,
+    .dark .text-teal-700,
+    .dark .text-cyan-800,
+    .dark .text-sky-800,
+    .dark .text-sky-700,
+    .dark .text-indigo-700,
+    .dark .text-violet-800,
+    .dark .text-violet-700,
+    .dark .text-purple-700,
+    .dark .text-fuchsia-800,
+    .dark .text-pink-800,
+    .dark .text-pink-700 {
       color: #111 !important;
     }
   }
