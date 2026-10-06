@@ -296,21 +296,32 @@ function execMemberView(u) {
   };
 }
 
-// Full Executive Committee roster: every approved member plus the
-// designation they currently hold ('' = General Member).
+// The Executive Committee roster holds ONLY members holding an executive
+// designation. General approved members are excluded.
+//
+// This query used to carry
+//   $or: [{ role: MEMBER }, { designation: { $nin: ['', null] } }]
+// which reads like "members or officers". It is not: `role` defaults to 'MEMBER'
+// in the schema (services/roleService.js only promotes it to ADMIN for
+// office-holders), so the first branch matches every ordinary approved member on
+// its own and the designation clause never comes into it. The board therefore
+// listed the whole membership.
+//
+// Filtering on designation alone is the fix, restricted to the known roles so a
+// stray hand-edited value cannot put an unknown job title on the committee. This
+// is the same shape services/clubContactService.js uses to find office-holders.
 exports.listExecutiveCommittee = async (req, res) => {
   try {
     const users = await User.find({
       status: config.STATUS.APPROVED,
-      $or: [{ role: config.ROLES.MEMBER }, { designation: { $exists: true, $nin: ['', null] } }],
-    }).sort({ designation: -1, membershipId: 1 });
+      designation: { $in: config.DESIGNATION_ROLES },
+    }).sort({ designation: 1, membershipId: 1 });
     for (const u of users) await ensureMembershipId(u);
     const members = users.filter((u) => u.membershipId).map(execMemberView);
-    const summary = {
-      total: members.length,
-      designated: members.filter((m) => m.designation).length,
-    };
-    return res.json({ members, summary });
+    return res.json({
+      members,
+      summary: { total: members.length, designated: members.length },
+    });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
@@ -318,6 +329,10 @@ exports.listExecutiveCommittee = async (req, res) => {
 
 // Autocomplete for the Member ID search box. Includes status + photo so the
 // picker can surface a member's current approval state at a glance.
+//
+// Deliberately NOT narrowed to designated members, unlike the roster above: this
+// is the picker used to GIVE someone a designation, so it has to reach the whole
+// approved membership. Do not "fix" the $or here to match the roster filter.
 exports.searchCommitteeMembers = async (req, res) => {
   try {
     const q = String(req.query.q || '').trim();

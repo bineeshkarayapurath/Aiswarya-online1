@@ -33,7 +33,6 @@ const STATUS_OK = 'APPROVED';
 
 export default function ExecutiveCommittee() {
   const [members, setMembers] = useState([]);
-  const [summary, setSummary] = useState({ total: 0, designated: 0 });
   const [loading, setLoading] = useState(true);
 
   const [q, setQ] = useState('');
@@ -50,7 +49,6 @@ export default function ExecutiveCommittee() {
     try {
       const res = await api.get('/admin/committee/executive');
       setRoster(res.data.members || []);
-      setSummary(res.data.summary || { total: 0, designated: 0 });
     } catch (e) {
       toast.error(e.response?.data?.message || 'Failed to load executive committee');
     } finally {
@@ -132,11 +130,19 @@ export default function ExecutiveCommittee() {
     await changeRosterRole(member, '');
   };
 
-  const sorted = [...roster].sort(
-    (a, b) =>
-      (b.designation ? 1 : 0) - (a.designation ? 1 : 0) ||
-      a.membershipId.localeCompare(b.membershipId)
-  );
+  // Group by office in seniority order, then by member ID within each office, so
+  // the board reads President -> Vice President -> Secretary -> ... rather than
+  // alphabetically interleaved. Members with no designation are dropped here as
+  // well as server-side: the roster must never list a general approved member.
+  const rank = (d) => {
+    const i = DESIGNATION_ROLES.indexOf(d);
+    return i === -1 ? Number.MAX_SAFE_INTEGER : i;
+  };
+  const sorted = [...roster]
+    .filter((m) => Boolean(m.designation))
+    .sort(
+      (a, b) => rank(a.designation) - rank(b.designation) || a.membershipId.localeCompare(b.membershipId)
+    );
 
   return (
     <div className="space-y-6">
@@ -296,7 +302,7 @@ export default function ExecutiveCommittee() {
             <FaUsers className="text-gold" /> Executive Committee Roster
           </p>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
-            {summary.designated} of {summary.total} designated
+            {sorted.length} officer{sorted.length === 1 ? '' : 's'}
           </span>
         </div>
         {loading ? (
@@ -304,7 +310,12 @@ export default function ExecutiveCommittee() {
         ) : sorted.length === 0 ? (
           <div className="flex flex-col items-center gap-2 px-6 py-12 text-center">
             <FaUsers className="h-9 w-9 text-slate-300" />
-            <p className="text-sm font-semibold text-slate-500">No approved members yet</p>
+            <p className="text-sm font-semibold text-slate-500">
+              No executive roles assigned yet
+            </p>
+            <p className="max-w-sm text-xs text-slate-400">
+              Search for a member above and assign a designation to add them to this board.
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
