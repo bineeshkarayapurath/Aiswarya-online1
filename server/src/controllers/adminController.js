@@ -92,6 +92,10 @@ exports.editRequest = async (req, res) => {
       };
     }
     await user.save();
+    // Corrections reach an approved member too (the detail dialog edits through
+    // this route), so any documents already generated are rebuilt from the
+    // record that was just saved rather than keeping the old details.
+    await refreshGeneratedDocuments(user);
     return res.json({ message: 'Updated' });
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -454,6 +458,68 @@ exports.getUserById = async (req, res) => {
   }
 };
 
+// Resolve a stored /uploads/pdfs/... URL (or a bare "pdfs/x.pdf" path) back to
+// the file inside STORAGE_DIR. Anything that escapes the storage root, or is not
+// a PDF, is rejected so a crafted URL cannot delete a file outside it.
+function storedPdfAbs(url) {
+  const p = String(url || '').replace(/\\/g, '/');
+  const marker = p.lastIndexOf('/pdfs/');
+  const rel = marker >= 0 ? p.slice(marker + 1) : p.replace(/^\/uploads\//, '');
+  if (!rel || !rel.toLowerCase().endsWith('.pdf')) return null;
+  const root = path.resolve(config.STORAGE_DIR);
+  const abs = path.resolve(root, rel);
+  if (!abs.startsWith(root + path.sep)) return null;
+  return abs;
+}
+
+// The generated application / ID-card PDFs are snapshots of the member's photo,
+// name, address and membership number, written once to a fixed path and only
+// rebuilt by serveFile when the file is missing. Editing a member (uploading a
+// new photo, correcting the name, moving the ID) therefore left the cached PDFs
+// showing the old — or a photo-less — document, which is exactly the report of
+// photos and numbers missing from a downloaded PDF. Rebuild the documents that
+// already exist from the record that was just saved, and drop the file left
+// behind by a renamed membership ID so it cannot be served again.
+async function refreshGeneratedDocuments(user) {
+  if (user.status !== config.STATUS.APPROVED) return;
+
+  const jobs = [
+    {
+      field: 'applicationPdfUrl',
+      generate: () =>
+        generateApplicationPdf(user, { approvedBy: user.approvedBy, approvedAt: user.approvedAt }),
+    },
+    { field: 'idCardPdfUrl', generate: () => generateIdCardPdf(user) },
+  ];
+
+  let changed = false;
+  for (const job of jobs) {
+    const oldUrl = user[job.field];
+    if (!oldUrl) continue; // no document yet: serveFile builds it on first download
+    try {
+      const file = await job.generate();
+      const stale = storedPdfAbs(oldUrl);
+      if (stale && path.resolve(stale) !== path.resolve(file) && fs.existsSync(stale)) {
+        try {
+          fs.unlinkSync(stale);
+        } catch (e) {
+          console.warn(`[admin] could not remove stale document ${path.basename(stale)}: ${e.message}`);
+        }
+      }
+      const next = publicUrl(path.relative(config.STORAGE_DIR, file));
+      if (oldUrl !== next) {
+        user[job.field] = next;
+        changed = true;
+      }
+    } catch (e) {
+      // Keep the old URL: serveFile regenerates the document when its file is
+      // gone, so one failed rebuild must not break the edit response.
+      console.error(`[admin] could not refresh ${job.field} for ${user._id}: ${e.message}`);
+    }
+  }
+  if (changed) await user.save();
+}
+
 // Update a registered member's details from the Approved Members table,
 // including photoUrl and membershipId. Membership IDs are kept strictly unique
 // (duplicate attempts are rejected); cleared IDs on approved accounts are
@@ -510,6 +576,10 @@ exports.updateUser = async (req, res) => {
     // An edit can change the member's name, which is what tells a real member
     // apart from an authority-login placeholder, so it can change the count.
     publicCache.invalidate('stats');
+
+    // Rebuild the member's PDFs so the downloaded documents carry the photo and
+    // membership number that were just saved instead of the previous ones.
+    await refreshGeneratedDocuments(user);
 
     const obj = user.toObject();
     delete obj.lowerPhone;

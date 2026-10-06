@@ -596,13 +596,20 @@ async function generateIdCardPdf(user) {
 
   // ---- Secretary's signature ----
   // The club's stored Secretary signature is printed directly on the rule. With
-  // no signature configured the rule simply stays empty, as it always has.
-  await drawSignature(doc, (await getClubSignatures()).secretarySignatureUrl, {
-    x: 5 * MM,
-    y: 41.3 * MM,
-    w: 43 * MM,
-    h: 6.5 * MM,
-  });
+  // no Secretary signature configured the President's takes the same rule, so a
+  // card for a club that only stores one officer image is never unsigned; only
+  // when neither is stored does the rule simply stay empty, as it always has.
+  const officerSignatures = await getClubSignatures();
+  await drawSignature(
+    doc,
+    officerSignatures.secretarySignatureUrl || officerSignatures.presidentSignatureUrl,
+    {
+      x: 5 * MM,
+      y: 41.3 * MM,
+      w: 43 * MM,
+      h: 6.5 * MM,
+    },
+  );
 
   doc.rect(3 * MM, 48.5 * MM, 47 * MM, 0.5 * MM).fillColor(gold).fill();
   doc.rect(CARD_W - 25 * MM, 48.5 * MM, 22 * MM, 0.5 * MM).fillColor(gold).fill();

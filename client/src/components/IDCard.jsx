@@ -181,7 +181,10 @@ function SignatureRule({ url }) {
 }
 
 function BackFace({ user }) {
-  const { secretarySignatureUrl } = useClubSignatures();
+  const { secretarySignatureUrl, presidentSignatureUrl } = useClubSignatures();
+  // Secretary's signature on the authorised rule; the President's takes it when
+  // the club has stored no Secretary image, mirroring the generated PDF card.
+  const signatureUrl = secretarySignatureUrl || presidentSignatureUrl;
   const contact = useClubContact();
   const cardContact = [contact.address, [contact.phoneNumber, contact.emailAddress].filter(Boolean).join('  •  ')]
     .filter(Boolean)
@@ -223,9 +226,10 @@ function BackFace({ user }) {
         <p className="mb-1 text-[9px]">Issued: {user.approvedAt?.slice(0, 10) || '—'}</p>
         <div className="flex items-end justify-between">
           <div className="flex w-[47%] flex-col items-center">
-            {/* The club's stored Secretary signature, resting on the rule. With
-                none configured the rule stays blank, as before. */}
-            <SignatureRule url={secretarySignatureUrl} />
+            {/* The club's stored Secretary signature, resting on the rule (or
+                the President's when no Secretary image is stored). With neither
+                configured the rule stays blank, as before. */}
+            <SignatureRule url={signatureUrl} />
             <p className="mt-0.5 text-center text-[9px] font-bold text-slate-600">
               Authorised Signature
             </p>
