@@ -109,9 +109,20 @@ export default function ApplicationPDF({ user, onClose }) {
         {/* print styles */}
         <style>{`
           @media print {
+            /* Isolate the letterhead: only this document paints. */
             body * { visibility: hidden; }
             #application-pdf, #application-pdf * { visibility: visible; }
             #application-pdf { position: absolute; left: 0; top: 0; width: 100%; }
+
+            /* The site chrome is already unpainted by the rule above, but it was
+               still laid out, which put the app's own <footer> — the "About the
+               club" block, whose Malayalam copy opens with the club's name in
+               Malayalam script — in the page flow underneath the letterhead, and
+               dragged a trailing blank sheet out of the printer with it. Removing
+               these elements from flow as well is what actually keeps them off the
+               printed application; the letterhead header and the address line
+               inside #application-pdf use plain divs, so they are untouched. */
+            header, footer, nav, aside { display: none; }
           }
         `}</style>
       </motion.div>
