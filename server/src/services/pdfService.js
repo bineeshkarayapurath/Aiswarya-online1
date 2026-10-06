@@ -3,7 +3,8 @@ const QRCode = require('qrcode');
 const path = require('path');
 const fs = require('fs');
 const config = require('../config/constants');
-const { pdfDir, qrDir, localMediaFile } = require('../utils/storage');
+const { pdfDir, qrDir } = require('../utils/storage');
+const { resolveMediaImage, warnUnreadableOnce } = require('../utils/mediaImage');
 const { drawSignature, getClubSignatures } = require('./signatureService');
 const { getClubContact } = require('./clubContactService');
 
@@ -150,6 +151,36 @@ function cleanText(v) {
     .trim();
 }
 
+// Embed a member's photo on any generated document. `photoUrl` may be a local
+// storage path, a data URI, or an absolute URL on an external image host
+// (ImgBB / Cloudinary / Firebase). PDFKit can only embed a path or a Buffer, so
+// remote photos are downloaded once and cached under storage/media-cache/.
+//
+// Returns true when an image was actually embedded. Callers use that to decide
+// whether to print the "Photo" placeholder: an unreadable photo must not leave
+// a blank frame that looks like the member supplied no picture.
+async function drawMemberPhoto(doc, stored, { x, y, w, h, fit }) {
+  const raw = String(stored || '').trim();
+  if (!raw) return false;
+  const img = await resolveMediaImage(raw, { subdir: 'media-cache', label: 'photo' });
+  if (!img) {
+    warnUnreadableOnce(
+      'photo',
+      raw,
+      'If the member photo is an external URL the host may be unreachable, ' +
+        'and if it is a local path the server disk may have been wiped on redeploy.',
+    );
+    return false;
+  }
+  try {
+    doc.image(img, x, y, { fit: fit || [w, h], align: 'center', valign: 'center' });
+    return true;
+  } catch (e) {
+    console.warn(`[photo] embed failed for ${raw}: ${e.message}`);
+    return false;
+  }
+}
+
 async function generateApplicationPdf(user, { approvedBy = '', approvedAt = null } = {}) {
   const doc = new PDFDocument({ size: 'A4', margin: 0 });
   const file = path.join(pdfDir(), `application_${user.membershipId || user._id}.pdf`);
@@ -252,17 +283,9 @@ async function generateApplicationPdf(user, { approvedBy = '', approvedAt = null
   });
 
   // Photo
-  if (user.photoUrl) {
-    const photoAbs = localMediaFile(user.photoUrl);
-    if (photoAbs) {
-      doc.image(photoAbs, photoX, photoY, { fit: [photoW, photoH] });
-      doc.rect(photoX, photoY, photoW, photoH).lineWidth(1).strokeColor(grey).stroke();
-    } else {
-      doc.rect(photoX, photoY, photoW, photoH).lineWidth(1).strokeColor(grey).stroke();
-      doc.font('Helvetica').fontSize(8).fillColor(grey).text('Photo', photoX, photoY + photoH / 2 - 5, { width: photoW, align: 'center' });
-    }
-  } else {
-    doc.rect(photoX, photoY, photoW, photoH).lineWidth(1).strokeColor(grey).stroke();
+  const photoDrawn = await drawMemberPhoto(doc, user.photoUrl, { x: photoX, y: photoY, w: photoW, h: photoH });
+  doc.rect(photoX, photoY, photoW, photoH).lineWidth(1).strokeColor(grey).stroke();
+  if (!photoDrawn) {
     doc.font('Helvetica').fontSize(8).fillColor(grey).text('Photo', photoX, photoY + photoH / 2 - 5, { width: photoW, align: 'center' });
   }
 
@@ -399,7 +422,9 @@ async function generateIdCardPdf(user) {
   const photoX = 2.6 * MM;
   const photoY = bodyTop + 0.2 * MM;
 
-  // Gold-framed photo (no background watermark)
+  // Gold-framed photo (no background watermark). Resolved before the frame is
+  // stroked so a photo that fails to load is reported rather than hidden behind
+  // an empty placeholder.
   doc.rect(
     photoX - 0.6 * MM,
     photoY - 0.6 * MM,
@@ -408,12 +433,7 @@ async function generateIdCardPdf(user) {
   ).lineWidth(0.7).strokeColor(gold).stroke();
 
   doc.rect(photoX, photoY, photoW, photoH).fill('#e8e2d1');
-  if (user.photoUrl) {
-    const photoAbs = localMediaFile(user.photoUrl);
-    if (photoAbs) {
-      doc.image(photoAbs, photoX, photoY, { fit: [photoW, photoH], align: 'center', valign: 'center' });
-    }
-  }
+  await drawMemberPhoto(doc, user.photoUrl, { x: photoX, y: photoY, w: photoW, h: photoH });
 
   // QR code — far right, vertically centered in the body
   const qrSize = 15.5 * MM;
