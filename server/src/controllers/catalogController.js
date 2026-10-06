@@ -1,6 +1,7 @@
 const XLSX = require('xlsx');
 const Book = require('../models/Book');
 const publicCache = require('../services/publicCache');
+const { resolveSort, CATALOG_COLLATION } = require('../services/catalogSort');
 
 // Accession numbers are normalised (trim + uppercase) so "a-012" and "A-012"
 // both resolve to the same unique record.
@@ -128,10 +129,14 @@ function bodyToBook(body) {
 
 exports.listBooks = async (req, res) => {
   try {
-    const { q, category, language } = req.query;
+    const { q, category, language, author } = req.query;
     const filter = {};
     if (category) filter.category = category;
     if (language) filter.language = language;
+    // Exact match on a value picked from the facet list in /admin/books/meta, so
+    // there is nothing to be fuzzy about — and an equality test can use an index,
+    // which the substring search below cannot.
+    if (author) filter.author = author;
     if (q) {
       // Regex, case-insensitive, partial (substring) match. Works for Unicode /
       // Malayalam as well as Latin accession numbers. Special chars in the query
@@ -148,7 +153,10 @@ exports.listBooks = async (req, res) => {
     }
     // Books are read-only projections for the UI, so lean() skips Mongoose
     // document hydration — a measurable saving on a full catalog listing.
-    const books = await Book.find(filter).sort({ stockNumber: 1 }).lean();
+    // `sortSpec` comes from the shared whitelist, never from the query string.
+    // The collation is required because accession numbers are numeric strings of
+    // varying width — without it "1021" sorts before "182" (see catalogSort.js).
+    const books = await Book.find(filter).sort(resolveSort(req.query.sort).spec).collation(CATALOG_COLLATION).lean();
     return res.json({ books, count: books.length });
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -157,9 +165,16 @@ exports.listBooks = async (req, res) => {
 
 exports.bookMeta = async (req, res) => {
   try {
-    const categories = (await Book.distinct('category')).filter(Boolean).sort();
-    const languages = (await Book.distinct('language')).filter(Boolean).sort();
-    return res.json({ categories, languages });
+    const [categories, languages, authors] = await Promise.all([
+      Book.distinct('category'),
+      Book.distinct('language'),
+      Book.distinct('author'),
+    ]);
+    return res.json({
+      categories: categories.filter(Boolean).sort(),
+      languages: languages.filter(Boolean).sort(),
+      authors: authors.filter(Boolean).sort(),
+    });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }

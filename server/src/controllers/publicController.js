@@ -3,6 +3,7 @@ const Book = require('../models/Book');
 const BookIssue = require('../models/BookIssue');
 const ProgramMinutes = require('../models/ProgramMinutes');
 const publicCache = require('../services/publicCache');
+const { resolveSort, DEFAULT_SORT, CATALOG_COLLATION } = require('../services/catalogSort');
 const { countApprovedMembers } = require('../services/membershipService');
 
 const ACTIVE_ISSUE_STATUSES = [config.ISSUE_STATUS.ISSUED, config.ISSUE_STATUS.OVERDUE];
@@ -124,12 +125,22 @@ const SEARCH_MAX_TIME_MS = 2000;
 const FEATURED_MIN = 6;
 const FEATURED_MAX = 10;
 
-function normalizeCatalogQuery({ q, limit }) {
+// Sort orders are defined and validated in services/catalogSort.js, shared with
+// the admin /admin/books endpoint so both catalog surfaces offer the same set.
+function normalizeCatalogQuery({ q, limit, category, author, sort }) {
   const term = q ? String(q).trim() : '';
   const requested = Number.parseInt(limit ?? '', 10);
-  const fallback = term ? 60 : 8;
+  const fallback = term || category || author ? 60 : 8;
   const max = Math.min(Number.isFinite(requested) && requested > 0 ? requested : fallback, MAX_CATALOG_LIMIT);
-  return { term, max };
+  const { key: sortKey, spec: sortSpec } = resolveSort(sort);
+  return {
+    term,
+    max,
+    category: category ? String(category).trim() : '',
+    author: author ? String(author).trim() : '',
+    sortKey,
+    sortSpec,
+  };
 }
 
 // Home Page events come ONLY from records explicitly approved by the
@@ -193,26 +204,49 @@ function buildSearchFilter(term) {
   return { $or: [{ title: rx }, { author: rx }, { stockNumber: rx }, { category: rx }] };
 }
 
+// Facet values for the filter dropdowns. One $distinct per field rather than a
+// $group over the whole collection. Authors are the long tail here — 634 distinct
+// names across 783 books — so the dropdown on the client narrows the list with a
+// text box instead of rendering every name at once.
+async function loadFacets() {
+  const [categories, authors] = await Promise.all([
+    Book.distinct('category'),
+    Book.distinct('author'),
+  ]);
+  const clean = (values) => values.filter((v) => typeof v === 'string' && v.trim()).sort();
+  return { categories: clean(categories), authors: clean(authors) };
+}
+
 // Builds the catalog payload. Split out of the handler so the cache wraps a
 // single function rather than the whole request/response cycle.
-async function buildCatalog({ term, max }) {
+async function buildCatalog({ term, max, category, author, sortSpec }) {
   const query = term ? buildSearchFilter(term) : {};
+
+  // Exact match, not a regex: these values are picked from the facet list below,
+  // which is itself `$distinct` output, so there is nothing to be fuzzy about —
+  // and an equality test on category/author can use an index, which the
+  // leading-wildcard search above cannot.
+  if (category) query.category = category;
+  if (author) query.author = author;
 
   // Books and events are independent, so they run concurrently. Both are
   // read-only projections: `.lean()` skips Mongoose document hydration and
   // `.select()` stops transferring the dozen fields the UI never touches.
-  // The sort is already index-backed via Book's unique stockNumber index.
+  // sortSpec comes from the whitelist, never straight from the query string.
   const booksQuery = Book.find(query)
     .select('stockNumber title author category')
-    .sort({ stockNumber: 1 })
+    .sort(sortSpec)
+    // See services/catalogSort.js: accession numbers are numeric strings of
+    // varying width, so plain string ordering is not numeric ordering.
+    .collation(CATALOG_COLLATION)
     .limit(max)
     .lean();
   if (term) booksQuery.maxTimeMS(SEARCH_MAX_TIME_MS);
 
-  const [books, events] = await Promise.all([booksQuery, loadEvents()]);
+  const [books, events, facets] = await Promise.all([booksQuery, loadEvents(), loadFacets()]);
   const mapped = await withAvailability(books);
 
-  return { books: mapped.length ? mapped : POPULAR_BOOKS, events };
+  return { books: mapped.length ? mapped : POPULAR_BOOKS, events, facets };
 }
 
 // Randomly ordered strip for the home page.
@@ -245,7 +279,7 @@ async function buildFeatured({ count }) {
 
 exports.catalog = async (req, res) => {
   try {
-    const { term, max } = normalizeCatalogQuery(req.query);
+    const { term, max, category, author, sortKey, sortSpec } = normalizeCatalogQuery(req.query);
 
     // `?featured=1` powers the rotating home page strip. It is a separate scope
     // from browse with a short TTL so the sample actually changes over time
@@ -256,14 +290,19 @@ exports.catalog = async (req, res) => {
       return sendPublic(res, payload, ROTATING_CACHE_CONTROL);
     }
 
-    // Only unfiltered browse views are cached, keyed by page size. Search terms
-    // are user input, so caching them would serve one visitor's results to
-    // another and grow the cache without bound.
-    if (term) {
-      return sendPublic(res, { data: await buildCatalog({ term, max }), hit: false });
+    // Search terms and facet filters are user input, so those responses are not
+    // cached: caching them would serve one visitor's results to another and grow
+    // the cache without bound. The plain browse listing is still cached, keyed by
+    // page size AND the sort the visitor picked — the same books in a different
+    // order are a different payload.
+    if (term || category || author || sortKey !== DEFAULT_SORT) {
+      return sendPublic(res, {
+        data: await buildCatalog({ term, max, category, author, sortSpec }),
+        hit: false,
+      });
     }
 
-    return sendPublic(res, await publicCache.remember(`catalog:${max}`, () => buildCatalog({ term, max })));
+    return sendPublic(res, await publicCache.remember(`catalog:${max}`, () => buildCatalog({ term, max, sortSpec })));
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }

@@ -131,7 +131,21 @@ export function invalidateCachedResource(prefix) {
 
 // One cache key per /public/catalog shape so the home page strip and the member
 // browse/search panel de-duplicate whenever they ask for the same thing.
-export const publicCatalogKey = (q = '', limit = 60) => `public/catalog?q=${q || ''}&limit=${limit}`;
+//
+// Every parameter that changes the RESULT has to be in the key. Search alone used
+// to be the only one; adding the facet filters and the sort without extending the
+// key would have been a silent correctness bug — picking "Novel" or
+// "Accession: high to low" would have painted the cached unfiltered listing and
+// only corrected itself once the entry aged out.
+export const publicCatalogKey = (
+  q = '',
+  limit = 60,
+  { category = '', author = '', sort = '' } = {},
+) =>
+  `public/catalog?q=${q || ''}&limit=${limit}` +
+  `&category=${encodeURIComponent(category || '')}` +
+  `&author=${encodeURIComponent(author || '')}` +
+  `&sort=${encodeURIComponent(sort || '')}`;
 
 // The rotating home page strip is its own shape: it asks the server for a fresh
 // random sample rather than a fixed page, so it must NOT share a key with a

@@ -17,6 +17,7 @@ import {
   FaFolderOpen,
   FaChevronDown,
 } from 'react-icons/fa';
+import { CATALOG_SORTS, DEFAULT_CATALOG_SORT } from '../lib/catalogSorts';
 
 const EMPTY_FORM = {
   stockNumber: '',
@@ -46,8 +47,11 @@ export default function CatalogPanel() {
   const [view, setView] = useState('cards');
   const [q, setQ] = useState('');
   const [category, setCategory] = useState('');
+  const [author, setAuthor] = useState('');
   const [language, setLanguage] = useState('');
+  const [sort, setSort] = useState(DEFAULT_CATALOG_SORT);
   const [categories, setCategories] = useState([]);
+  const [authors, setAuthors] = useState([]);
   const [languages, setLanguages] = useState([]);
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_FORM });
@@ -67,9 +71,10 @@ export default function CatalogPanel() {
 
   const load = async () => {
     try {
-      const params = {};
+      const params = { sort };
       if (debouncedQ.trim()) params.q = debouncedQ.trim();
       if (category) params.category = category;
+      if (author) params.author = author;
       if (language) params.language = language;
       const res = await api.get('/admin/books', { params });
       setBooks(res.data.books || []);
@@ -83,11 +88,12 @@ export default function CatalogPanel() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedQ, category, language]);
+  }, [debouncedQ, category, author, language, sort]);
 
   const loadMeta = () => {
     api.get('/admin/books/meta').then((r) => {
       setCategories(r.data.categories || []);
+      setAuthors(r.data.authors || []);
       setLanguages(r.data.languages || []);
     }).catch(() => {});
   };
@@ -158,10 +164,12 @@ export default function CatalogPanel() {
   const clearFilters = () => {
     setQ('');
     setCategory('');
+    setAuthor('');
     setLanguage('');
+    setSort(DEFAULT_CATALOG_SORT);
   };
 
-  const hasFilters = Boolean(q.trim() || category || language);
+  const hasFilters = Boolean(q.trim() || category || author || language || sort !== DEFAULT_CATALOG_SORT);
 
   // The folder starts collapsed so the dashboard stays clean, but a search must
   // still reveal results without the user opening it first. Opening on a fresh
@@ -255,9 +263,23 @@ export default function CatalogPanel() {
                   <option value="">All Categories</option>
                   {categories.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
+                <select className="input w-auto max-w-[220px]" value={author} onChange={(e) => setAuthor(e.target.value)}>
+                  <option value="">All Authors</option>
+                  {authors.map((a) => <option key={a} value={a}>{a}</option>)}
+                </select>
                 <select className="input w-auto" value={language} onChange={(e) => setLanguage(e.target.value)}>
                   <option value="">All Languages</option>
                   {languages.map((l) => <option key={l} value={l}>{l}</option>)}
+                </select>
+                <select
+                  className="input w-auto"
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value)}
+                  aria-label="Sort books"
+                >
+                  {CATALOG_SORTS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
                 </select>
               </div>
 
