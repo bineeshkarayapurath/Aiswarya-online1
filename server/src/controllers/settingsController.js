@@ -115,8 +115,9 @@ function purgeGeneratedDocuments() {
     if (!fs.existsSync(dir)) return 0;
     let removed = 0;
     for (const name of fs.readdirSync(dir)) {
-      // Only the generated application/ID-card PDFs live in this folder.
-      if (!/^(application|idcard)_.+\.pdf$/i.test(name)) continue;
+      // Only the generated application/ID-card PDFs live in this folder, along
+      // with the ".stamp" sidecars serveFile compares against.
+      if (!/^(application|idcard)_.+\.pdf(\.stamp)?$/i.test(name)) continue;
       try {
         fs.unlinkSync(path.join(dir, name));
         removed += 1;

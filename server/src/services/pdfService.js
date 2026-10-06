@@ -2,8 +2,9 @@ const PDFDocument = require('pdfkit');
 const QRCode = require('qrcode');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const config = require('../config/constants');
-const { pdfDir, qrDir } = require('../utils/storage');
+const { pdfDir, qrDir, localMediaFile } = require('../utils/storage');
 const { resolveMediaImage, warnUnreadableOnce } = require('../utils/mediaImage');
 const { drawSignature, getClubSignatures } = require('./signatureService');
 const { getClubContact } = require('./clubContactService');
@@ -41,6 +42,82 @@ async function writeQrImage(payload, filename) {
   const file = path.join(qrDir(), filename);
   await QRCode.toFile(file, payload, { width: 260, margin: 1 });
   return file;
+}
+
+/**
+ * Offline fingerprint of a stored image reference, used to notice that a photo
+ * or signature has been restored, replaced or wiped without fetching anything.
+ * Local files contribute size + mtime (so a file coming back from a backup
+ * invalidates the cached PDF); remote URLs contribute whether a downloaded copy
+ * already sits in one of the cache folders, which is what the generators embed.
+ */
+function assetFingerprint(raw) {
+  const v = String(raw || '').trim();
+  if (!v) return '';
+  const local = localMediaFile(v);
+  if (local) {
+    try {
+      const st = fs.statSync(local);
+      return `${v}|file:${st.size}:${Math.round(st.mtimeMs)}`;
+    } catch (e) {
+      return `${v}|missing`;
+    }
+  }
+  if (/^https?:\/\//i.test(v)) {
+    // resolveMediaImage / resolveSignatureImage keep downloaded copies under
+    // these folders; a copy appearing later means an earlier download failed
+    // and the cached PDF deserves one rebuild.
+    const key = crypto.createHash('sha1').update(v).digest('hex');
+    for (const dir of ['media-cache', 'signatures']) {
+      try {
+        if (fs.readdirSync(path.join(config.STORAGE_DIR, dir)).some((f) => f.startsWith(key))) {
+          return `${v}|cached`;
+        }
+      } catch (e) {
+        // Folder not created yet: nothing has been downloaded.
+      }
+    }
+    return `${v}|remote`;
+  }
+  return `${v}|missing`;
+}
+
+/**
+ * Hash of everything that decides how a generated document looks: the member
+ * record, the officer signature URLs and the identity of the image files behind
+ * them. Each PDF is written next to a "<file>.stamp" holding this value, and
+ * serveFile rebuilds a document whose stamp no longer matches. That is what
+ * makes a card generated while a photo was unreadable (or before a signature
+ * was configured) repair itself on the next download instead of serving the
+ * blank snapshot forever.
+ */
+async function documentStamp(type, user) {
+  const signatures = await getClubSignatures();
+  const payload = JSON.stringify({
+    type,
+    photo: assetFingerprint(user.photoUrl),
+    membershipId: user.membershipId || '',
+    fullName: cleanText(user.fullName),
+    address: cleanText(user.address),
+    designation: cleanText(user.designation),
+    phoneNumber: user.phoneNumber || '',
+    email: user.email || '',
+    dob: user.dob ? new Date(user.dob).toISOString() : '',
+    approvedBy: user.approvedBy || '',
+    approvedAt: user.approvedAt ? new Date(user.approvedAt).toISOString() : '',
+    secretarySignature: assetFingerprint(signatures.secretarySignatureUrl),
+    presidentSignature: assetFingerprint(signatures.presidentSignatureUrl),
+  });
+  return crypto.createHash('sha1').update(payload).digest('hex');
+}
+
+function writeStamp(file, stamp) {
+  try {
+    fs.writeFileSync(`${file}.stamp`, stamp);
+  } catch (e) {
+    // A missing stamp only means the document is rebuilt once more later.
+    console.warn(`[pdf] could not write stamp for ${path.basename(file)}: ${e.message}`);
+  }
 }
 
 /**
@@ -356,6 +433,9 @@ async function generateApplicationPdf(user, { approvedBy = '', approvedAt = null
     stream.on('finish', resolve);
     stream.on('error', reject);
   });
+  // Computed after drawing, so a photo or signature downloaded during this run
+  // already counts as cached and serveFile agrees with what was embedded.
+  writeStamp(file, await documentStamp('application', user));
   return file;
 }
 
@@ -433,7 +513,22 @@ async function generateIdCardPdf(user) {
   ).lineWidth(0.7).strokeColor(gold).stroke();
 
   doc.rect(photoX, photoY, photoW, photoH).fill('#e8e2d1');
-  await drawMemberPhoto(doc, user.photoUrl, { x: photoX, y: photoY, w: photoW, h: photoH });
+  const photoDrawn = await drawMemberPhoto(doc, user.photoUrl, {
+    x: photoX,
+    y: photoY,
+    w: photoW,
+    h: photoH,
+  });
+  // Same placeholder the application prints: an unreadable photo must read as
+  // "a photo belongs here", not as a template that failed to draw.
+  if (!photoDrawn) {
+    doc.font('Helvetica').fontSize(4.5).fillColor(labelColor).text(
+      'Photo',
+      photoX,
+      photoY + photoH / 2 - 2,
+      { width: photoW, align: 'center' }
+    );
+  }
 
   // QR code — far right, vertically centered in the body
   const qrSize = 15.5 * MM;
@@ -622,7 +717,8 @@ async function generateIdCardPdf(user) {
     stream.on('finish', resolve);
     stream.on('error', reject);
   });
+  writeStamp(file, await documentStamp('idcard', user));
   return file;
 }
 
-module.exports = { generateApplicationPdf, generateIdCardPdf, formatDate };
+module.exports = { generateApplicationPdf, generateIdCardPdf, documentStamp, formatDate };

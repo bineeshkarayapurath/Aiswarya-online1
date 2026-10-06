@@ -3,7 +3,7 @@ const fs = require('fs');
 const config = require('../config/constants');
 const { storagePath, publicUrl } = require('../utils/storage');
 const { syncDesignationRole } = require('../services/roleService');
-const { generateApplicationPdf, generateIdCardPdf } = require('../services/pdfService');
+const { generateApplicationPdf, generateIdCardPdf, documentStamp } = require('../services/pdfService');
 
 // Normalised member view: media paths stored as relative /uploads/... (or
 // "photos/x.jpg") are exposed to the client as fully-qualified public URLs so
@@ -79,7 +79,28 @@ exports.serveFile = async (req, res) => {
   // Rebuild from the member record instead of 404ing — pdfService is
   // self-contained and its optional assets (logo, officer signatures) already
   // degrade gracefully, so it is safe to call on demand.
-  if (!abs || !fs.existsSync(abs)) {
+  //
+  // Out of date: every generated file carries a "<file>.stamp" recording the
+  // record and signature images it was built from. A card built while the photo
+  // was unreadable or before a signature was configured would otherwise be
+  // served as a blank snapshot forever, because the file itself exists.
+  let stale = false;
+  if (abs && fs.existsSync(abs)) {
+    try {
+      const current = await documentStamp(type, user);
+      const onDisk = fs.readFileSync(`${abs}.stamp`, 'utf8').trim();
+      stale = onDisk !== current;
+    } catch (e) {
+      stale = true; // document predates stamping (or its stamp is unreadable)
+    }
+    if (stale) {
+      console.log(
+        `[member/document] ${type} PDF for ${user.membershipId || user._id} no longer matches the record; rebuilding`,
+      );
+    }
+  }
+
+  if (!abs || !fs.existsSync(abs) || stale) {
     const key = `${user._id}:${type}`;
     if (!inflight.has(key)) {
       inflight.set(
@@ -107,7 +128,14 @@ exports.serveFile = async (req, res) => {
       abs = await inflight.get(key);
     } catch (err) {
       console.error(`[member/document] Failed to regenerate ${type} PDF for ${user._id}: ${err.message}`);
-      return res.status(500).json({ message: 'Could not generate this document. Please try again.' });
+      // A stale-but-readable file is still the best document available; only
+      // fail when there is nothing at all to send.
+      if (!abs || !fs.existsSync(abs)) {
+        return res.status(500).json({ message: 'Could not generate this document. Please try again.' });
+      }
+      console.warn(
+        `[member/document] serving the previous ${type} PDF for ${user.membershipId || user._id} instead`,
+      );
     }
 
     if (!abs || !fs.existsSync(abs)) {

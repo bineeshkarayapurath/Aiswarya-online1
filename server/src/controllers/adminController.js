@@ -502,6 +502,9 @@ async function refreshGeneratedDocuments(user) {
       if (stale && path.resolve(stale) !== path.resolve(file) && fs.existsSync(stale)) {
         try {
           fs.unlinkSync(stale);
+          // Its stamp belongs to the deleted file; a leftover would otherwise
+          // shadow the one written for the rebuilt document.
+          if (fs.existsSync(`${stale}.stamp`)) fs.unlinkSync(`${stale}.stamp`);
         } catch (e) {
           console.warn(`[admin] could not remove stale document ${path.basename(stale)}: ${e.message}`);
         }
