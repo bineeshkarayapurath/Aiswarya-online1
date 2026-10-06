@@ -41,7 +41,12 @@ export const clubConfig = {
     // CLUB, which the server twin of this object also falls back to.
     address:
       'Aiswarya Library and Reading Room, Arts and Sports Club, Kuppakkolly, Ambalavayal P.O., Wayanad, PIN: 673593',
-    phone: '+91 94466 00000',
+    // Intentionally blank — the old "+91 94466 00000" placeholder was removed at
+    // the club's request rather than published. Every consumer (footer contact
+    // list, receipt documents, ID cards) filters an empty value out, so no blank
+    // line is shown on first paint; set the phone once in Admin -> System
+    // Settings and it replaces this everywhere.
+    phone: '',
     email: '12bty6652@gmail.com',
     social: {
       mapsUrl: '',

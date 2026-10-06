@@ -221,7 +221,13 @@ module.exports = {
     // client twin — change both.
     address:
       'Aiswarya Library and Reading Room, Arts and Sports Club, Kuppakkolly, Ambalavayal P.O., Wayanad, PIN: 673593',
-    phone: '+91 94466 00000',
+    // Intentionally blank. The club asked for the old "+91 94466 00000" placeholder
+    // to be removed rather than published, so there is no fallback number here: the
+    // footer, the letterhead and the ID cards print the phone only when
+    // ClubSettings.phoneNumber has one. Every consumer already filters an empty
+    // value, so nothing renders a blank line — publish a number in Admin ->
+    // System Settings and it appears on all of those surfaces at once.
+    phone: '',
     email: '12bty6652@gmail.com',
     // Mirrors client themeColors (white-label twin). Change the client config
     // and keep these in sync for server-generated PDFs / ID cards.
