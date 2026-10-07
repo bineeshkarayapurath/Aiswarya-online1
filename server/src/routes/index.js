@@ -19,6 +19,7 @@ const issues = require('../controllers/issueController');
 const vouchers = require('../controllers/voucherController');
 const cs = require('../controllers/communityServiceController');
 const uploadCtrl = require('../controllers/uploadController');
+const events = require('../controllers/eventProgramController');
 
 const config = require('../config/constants');
 
@@ -282,6 +283,20 @@ router.get('/admin/issues/stats', requireAuth, requireOfficerOrAdmin(['Librarian
 router.get('/admin/issues/members', requireAuth, requireOfficerOrAdmin(['Librarian']), issues.searchMembers);
 router.post('/admin/issues', requireAuth, requireOfficerOrAdmin(['Librarian']), issues.createIssue);
 router.post('/admin/issues/:id/return', requireAuth, requireOfficerOrAdmin(['Librarian']), issues.returnBook);
+
+// Events / Program Registrations (dynamic)
+const EVENT_MANAGERS = [...EXEC_OFFICERS, 'Librarian'];
+router.get('/events', events.listEvents);
+router.get('/events/open', requireAuth, requireMember, events.getOpenForUser);
+router.get('/events/:id', events.getEvent);
+router.post('/events', requireAuth, requireOfficerOrAdmin(EVENT_MANAGERS), events.createEvent);
+router.put('/events/:id', requireAuth, requireOfficerOrAdmin(EVENT_MANAGERS), events.updateEvent);
+router.put('/events/:id/toggle', requireAuth, requireOfficerOrAdmin(EVENT_MANAGERS), events.toggleRegistration);
+router.delete('/events/:id', requireAuth, requireOfficerOrAdmin(EVENT_MANAGERS), events.deleteEvent);
+
+router.get('/event-registrations', requireAuth, requireOfficerOrAdmin(EVENT_MANAGERS), events.listRegistrations);
+router.get('/member/event-registrations', requireAuth, requireMember, events.myRegistrations);
+router.post('/member/event-registrations', requireAuth, requireMember, events.register);
 
 // Member
 router.get('/member/profile', requireAuth, requireMember, member.myProfile);
