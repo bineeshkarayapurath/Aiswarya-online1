@@ -19,7 +19,7 @@ const issues = require('../controllers/issueController');
 const vouchers = require('../controllers/voucherController');
 const cs = require('../controllers/communityServiceController');
 const uploadCtrl = require('../controllers/uploadController');
-const registrations = require('../controllers/registrationController');
+
 const config = require('../config/constants');
 
 const EXEC_OFFICERS = [
@@ -45,14 +45,6 @@ router.get('/public/settings', settings.getSettings);
 // the signatures are not exposed to anonymous visitors.
 router.get('/settings/signatures', requireAuth, settings.getSignatures);
 router.get('/public/gallery', gallery.listPublicAlbums);
-
-// New Year Annual Celebration program registration. Public by design: the
-// entrance form is open to non-members, who have no account to authenticate
-// with. optionalAuth links the entry to a signed-in member when a valid token
-// happens to be present.
-router.get('/registrations/config', registrations.getConfig);
-router.get('/registrations/member/:membershipId', registrations.lookupMember);
-router.post('/registrations', optionalAuth, registrations.create);
 
 // Generic image upload (multipart, field "photos"). Public by design so new
 // member registration can attach a photo before an account exists. Files are
@@ -156,21 +148,7 @@ router.put(
   settings.updateSettings
 );
 
-// New Year Annual Celebration program register (executive officers + the
-// designated Librarian). requireOfficerOrAdmin lets a Librarian (a MEMBER-role
-// account) through, which the old requireSuperAdmin gate blocked. The settings
-// route is declared before the :id route so "settings" is not read as a
-// registration id.
-router.get('/admin/registrations', requireAuth, requireOfficerOrAdmin(PROGRAM_REG_MANAGERS), registrations.listAdmin);
-router.get('/admin/program-registrations', requireAuth, requireOfficerOrAdmin(PROGRAM_REG_MANAGERS), registrations.listAdmin);
-router.put('/admin/registrations/settings', requireAuth, requireOfficerOrAdmin(PROGRAM_REG_MANAGERS), registrations.updateConfig);
-router.patch('/admin/registrations/settings', requireAuth, requireOfficerOrAdmin(PROGRAM_REG_MANAGERS), registrations.updateConfig);
-router.post('/admin/registrations/settings', requireAuth, requireOfficerOrAdmin(PROGRAM_REG_MANAGERS), registrations.updateConfig);
-router.put('/admin/program-registrations/settings', requireAuth, requireOfficerOrAdmin(PROGRAM_REG_MANAGERS), registrations.updateConfig);
-router.patch('/admin/program-registrations/settings', requireAuth, requireOfficerOrAdmin(PROGRAM_REG_MANAGERS), registrations.updateConfig);
-router.post('/admin/program-registrations/settings', requireAuth, requireOfficerOrAdmin(PROGRAM_REG_MANAGERS), registrations.updateConfig);
-router.get('/admin/registrations/:id', requireAuth, requireOfficerOrAdmin(PROGRAM_REG_MANAGERS), registrations.getOne);
-router.delete('/admin/registrations/:id', requireAuth, requireOfficerOrAdmin(PROGRAM_REG_MANAGERS), registrations.remove);
+
 
 // Executive Committee (main) — designation management (executive officers)
 router.get('/admin/committee/executive', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), admin.listExecutiveCommittee);
@@ -309,8 +287,7 @@ router.post('/admin/issues/:id/return', requireAuth, requireOfficerOrAdmin(['Lib
 router.get('/member/profile', requireAuth, requireMember, member.myProfile);
 router.get('/member/document/:type', requireAuth, requireMember, member.serveFile);
 
-// The member's own program registrations & chest numbers (never the whole list).
-router.get('/member/registrations', requireAuth, requireMember, registrations.myRegistrations);
+
 
 // AI Book Assistant - approved members only. aiLimiter is a coarse per-IP brake
 // on top of the controller's per-member hourly quota, because every question

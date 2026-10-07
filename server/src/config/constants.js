@@ -202,23 +202,8 @@ module.exports = {
   },
   SECTIONS: ['Main', 'Vanitha Vedi', 'Bala Vedi', 'Yuvatha'],
   OFFICIABLE_SECTIONS: ['Vanitha Vedi', 'Bala Vedi', 'Yuvatha'],
-  // New Year Annual Celebration program registration. Categories drive the
-  // grouped listing in the admin panel and the dropdown on the entry form.
-  // Order is the order they are presented in.
-  PROGRAM_CATEGORIES: [
-    'Bharatanatyam',
-    'Group Dance',
-    'Drama',
-    'Group Events',
-    'Music / Singing',
-    'Mimicry',
-    'Quiz',
-    'Elocution',
-    'Sports',
-    'Others',
-  ],
-  // Prefix for auto-generated chest numbers, e.g. NY27-001.
-  CHEST_NUMBER_PREFIX: process.env.CHEST_NUMBER_PREFIX || 'NY27',
+
+
   // Prefix for generated membership IDs (e.g. ALC-001). Read by
   // services/membershipService.nextMembershipId(); it was previously read from
   // here while never being defined here, so every newly minted ID came out as

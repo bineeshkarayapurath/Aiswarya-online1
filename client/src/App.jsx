@@ -4,7 +4,6 @@ import Footer from './components/Footer';
 import DevTools from './components/DevTools';
 import Landing from './pages/Landing';
 import Gallery from './pages/Gallery';
-import ProgramRegistration from './pages/ProgramRegistration';
 import Register from './pages/Register';
 import PendingApproval from './pages/PendingApproval';
 import MemberLogin from './pages/MemberLogin';
@@ -42,7 +41,6 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/gallery" element={<Gallery />} />
-          <Route path="/program-registration" element={<ProgramRegistration />} />
           <Route path="/register" element={<Register />} />
           {/* Dev aliases */}
           <Route path="/signup" element={<Register />} />

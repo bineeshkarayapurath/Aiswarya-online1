@@ -201,15 +201,7 @@ export default function Navbar() {
                   {t('nav.gallery')}
                 </Link>
               )}
-              {featureEnabled('enableProgramRegistration') && (
-                <Link
-                  to="/program-registration"
-                  className="hidden items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-emerald-900 transition hover:bg-emerald-900/10 md:flex dark:text-emerald-300 dark:hover:bg-white/10"
-                >
-                  <FaMusic className="text-sm" />
-                  {t('nav.programRegistration')}
-                </Link>
-              )}
+
               <Link
                 to="/register"
                 className="hidden items-center gap-1.5 rounded-lg bg-gold/10 px-3 py-1.5 text-xs font-semibold text-gold transition hover:bg-gold/20 sm:flex dark:text-gold-300"
