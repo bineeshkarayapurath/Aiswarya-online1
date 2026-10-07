@@ -137,7 +137,11 @@ export default function ProgramRegistrationPanel() {
       setOpen(Boolean(res.data.open));
       toast.success(res.data.message);
     } catch (e) {
-      toast.error(e.response?.data?.message || 'Could not change the setting');
+      const status = e.response?.status;
+      toast.error(
+        e.response?.data?.message ||
+          (status ? `Could not change the setting (server replied ${status})` : 'Network error — could not change the setting')
+      );
     } finally {
       setToggling(false);
     }

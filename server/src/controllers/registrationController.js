@@ -6,10 +6,11 @@ const { nextChestNumber } = require('../models/ProgramRegistration');
 
 const CATEGORIES = config.PROGRAM_CATEGORIES;
 
-async function getSettings() {
-  let doc = await ClubSettings.findOne({ key: 'default' });
-  if (!doc) doc = await ClubSettings.create({ key: 'default' });
-  return doc;
+// Read the single settings row without creating one (public GETs must never
+// write). Returns null when the club has never saved any settings, which the
+// callers treat as "registration closed".
+async function readSettings() {
+  return ClubSettings.findOne({ key: 'default' }).lean();
 }
 
 // Normalise a stored registration into the shape the client consumes.
@@ -46,9 +47,9 @@ function cleanLead(raw = {}, fallback = {}) {
 // Public: whether registration is open, plus the category list for the form.
 exports.getConfig = async (req, res) => {
   try {
-    const settings = await getSettings();
+    const settings = await readSettings();
     return res.json({
-      open: Boolean(settings.programRegistrationOpen),
+      open: Boolean(settings && settings.programRegistrationOpen),
       categories: CATEGORIES,
     });
   } catch (err) {
@@ -90,10 +91,10 @@ exports.lookupMember = async (req, res) => {
 // assign the next chest number.
 exports.create = async (req, res) => {
   try {
-    const settings = await getSettings();
+    const settings = await readSettings();
     // The admin toggle gates new registrations only; the admin panel keeps its
-    // full list regardless.
-    if (!settings.programRegistrationOpen) {
+    // full list regardless. A missing settings row means registration is closed.
+    if (!settings || !settings.programRegistrationOpen) {
       return res.status(403).json({
         message: 'Program registration is currently closed. Please check back later.',
       });
@@ -295,16 +296,27 @@ exports.remove = async (req, res) => {
 // Admin: flip the registration on/off.
 exports.updateConfig = async (req, res) => {
   try {
-    const settings = await getSettings();
-    if (req.body.open !== undefined) {
-      settings.programRegistrationOpen = Boolean(req.body.open);
-    }
-    await settings.save();
+    const current = await readSettings();
+    const open =
+      req.body && req.body.open !== undefined
+        ? Boolean(req.body.open)
+        : Boolean(current && current.programRegistrationOpen);
+
+    // Upsert so the toggle works even on a database whose settings row has never
+    // been created, and so a legacy row missing programRegistrationOpen is
+    // written explicitly rather than relying on schema defaults on save().
+    const doc = await ClubSettings.findOneAndUpdate(
+      { key: 'default' },
+      { $set: { programRegistrationOpen: open } },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+
     return res.json({
-      message: settings.programRegistrationOpen
+      message: doc.programRegistrationOpen
         ? 'Program registration is now OPEN'
         : 'Program registration is now CLOSED',
-      open: Boolean(settings.programRegistrationOpen),
+      open: Boolean(doc.programRegistrationOpen),
+      categories: CATEGORIES,
     });
   } catch (err) {
     return res.status(500).json({ message: err.message });

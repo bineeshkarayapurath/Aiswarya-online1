@@ -4,7 +4,7 @@ import api from '../api/client';
 import Spinner from './Spinner';
 import ProgramRegistrationForm from './ProgramRegistrationForm';
 import { DEFAULT_PROGRAM_CATEGORIES } from '../lib/programRegistration';
-import { FaTicketAlt, FaUserFriends, FaMusic } from 'react-icons/fa';
+import { FaTicketAlt, FaUserFriends, FaMusic, FaLock } from 'react-icons/fa';
 
 function ChestBadge({ chest }) {
   return (
@@ -89,8 +89,33 @@ export default function MemberProgramRegistrations({ member }) {
   }, [loadMine]);
 
   if (loading) return null;
-  // Off — hidden from the general member profile entirely.
-  if (!config?.open) return null;
+
+  const closed = !config?.open;
+
+  // Closed — hide the form (and the club-wide controls a member never sees) and
+  // say so plainly instead of leaving the section blank.
+  if (closed) {
+    return (
+      <div className="border-t border-slate-200 pt-10">
+        <div className="mb-5 flex items-center gap-2">
+          <FaMusic className="text-gold" />
+          <h2 className="text-lg font-bold text-emerald-900">
+            New Year 2027 Annual Celebration
+          </h2>
+        </div>
+        <div className="flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-slate-200 bg-white px-6 py-12 text-center">
+          <FaLock className="h-9 w-9 text-slate-300" />
+          <p className="text-base font-extrabold uppercase tracking-wide text-slate-600">
+            Registration is CLOSED
+          </p>
+          <p className="max-w-md text-sm text-slate-500">
+            Program registration is not open right now. Please check back later or contact the
+            club office.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const categories = config.categories?.length ? config.categories : DEFAULT_PROGRAM_CATEGORIES;
 

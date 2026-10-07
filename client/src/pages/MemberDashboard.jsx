@@ -13,7 +13,7 @@ import MemberProgramRegistrations from '../components/MemberProgramRegistrations
 import ProgramRegistrationPanel from '../components/ProgramRegistrationPanel';
 import BookAssistant from '../components/BookAssistant';
 import { featureEnabled, subcommitteeEnabled, CLUB } from '../lib/club';
-import { roleLabel, canManageProgramRegistration } from '../lib/permissions';
+import { roleLabel, isProgramRegistrationLibrarian } from '../lib/permissions';
 import {
   FaFilePdf,
   FaIdCardAlt,
@@ -114,10 +114,10 @@ export default function MemberDashboard() {
       ['Vanitha Vedi', 'Bala Vedi', 'Yuvatha'].includes(s.committeeName)
   );
 
-  // Admins and the designated Librarian get full oversight of the New Year
-  // program registration lists right on their profile; every other member sees
-  // only their own entries. Mirrors the server-side route guard.
-  const canManageProgramRegistrations = canManageProgramRegistration(m);
+  // Only the designated Librarian gets the management view (categorised list +
+  // toggle) on their own profile. Full admins manage it from the Admin panel,
+  // and every other member sees only their own entries and submission status.
+  const showProgramRegistrationManager = isProgramRegistrationLibrarian(m);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
@@ -263,7 +263,7 @@ export default function MemberDashboard() {
       </div>
 
       {featureEnabled('enableProgramRegistration') &&
-        (canManageProgramRegistrations ? (
+        (showProgramRegistrationManager ? (
           <div className="mt-10 border-t border-slate-200 pt-10">
             <div className="mb-5 flex items-center gap-2">
               <FaMusic className="text-gold" />

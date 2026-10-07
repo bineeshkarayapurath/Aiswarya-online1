@@ -84,6 +84,20 @@ export function canManageProgramRegistration(user) {
   );
 }
 
+// The designated Librarian is the only program-registration manager who is NOT a
+// top-level admin, so they reach the management view through their own member
+// profile rather than the Authority Dashboard. Full admins manage from the Admin
+// panel; a regular member profile never renders the management controls.
+export function isProgramRegistrationLibrarian(user) {
+  return (
+    Boolean(user) &&
+    user.role !== 'ADMIN' &&
+    user.role !== 'SUPER_ADMIN' &&
+    user.status === 'APPROVED' &&
+    user.designation === DESIGNATIONS.LIBRARIAN
+  );
+}
+
 // The role a member effectively presents. A President / Secretary / Executive
 // Committee Member is ADMIN by virtue of the designation, exactly like the
 // server's effectiveRole(). Keeps the members table honest even if it is
