@@ -187,10 +187,7 @@ module.exports = {
     catalog: ['Librarian'],
     issues: ['Librarian'],
     programs: ['President', 'Vice President', 'Secretary', 'Joint Secretary', 'Executive Committee Member'],
-    // New Year 2027 program registration. The Librarian is granted oversight
-    // alongside the executive officers (view / verify / manage the lists).
-    programRegistration: ['President', 'Vice President', 'Secretary', 'Joint Secretary', 'Executive Committee Member', 'Librarian'],
-    accounts: ['Treasurer'],
+      accounts: ['Treasurer'],
     vouchers: ['Treasurer'],
     communityService: ['President', 'Vice President', 'Secretary', 'Joint Secretary', 'Executive Committee Member'],
     gallery: ['President', 'Vice President', 'Secretary', 'Joint Secretary', 'Executive Committee Member'],
