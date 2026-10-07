@@ -263,17 +263,7 @@ export default function MemberDashboard() {
       </div>
 
       {featureEnabled('enableProgramRegistration') &&
-        (showProgramRegistrationManager ? (
-          <div className="mt-10 border-t border-slate-200 pt-10">
-            <div className="mb-5 flex items-center gap-2">
-              <FaMusic className="text-gold" />
-              <h2 className="text-lg font-bold text-emerald-900">
-                New Year 2027 Annual Celebration — Registration Management
-              </h2>
-            </div>
-            <ProgramRegistrationPanel />
-          </div>
-        ) : (
+
           <div className="mt-10">
             <MemberProgramRegistrations member={m} />
           </div>
