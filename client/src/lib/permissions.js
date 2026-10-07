@@ -30,6 +30,9 @@ export const MODULE_PERMISSIONS = {
   catalog: ['Librarian'],
   issues: ['Librarian'],
   programs: EXEC_GROUP,
+  // New Year 2027 program registration: executive officers plus the Librarian
+  // designated on the Executive Committee list.
+  programRegistration: [...EXEC_GROUP, 'Librarian'],
   accounts: ['Treasurer'],
   vouchers: ['Treasurer'],
   communityService: EXEC_GROUP,
@@ -59,6 +62,26 @@ export function canManageModule(key, designation, role) {
 // Mirrors the server's EXEC_ACCESS / designationGrantsAdmin().
 export function isDesignationAdmin(designation) {
   return Boolean(designation) && EXEC_GROUP.includes(designation);
+}
+
+// Designations that may view / verify / manage the New Year program
+// registration lists — the executive officers plus the Librarian. Mirrors the
+// server's MODULE_PERMISSIONS.programRegistration and the route guard
+// requireOfficerOrAdmin([...EXEC_OFFICERS, 'Librarian']).
+export const PROGRAM_REGISTRATION_MANAGERS = [...EXEC_GROUP, DESIGNATIONS.LIBRARIAN];
+
+// Precise check for full program-registration oversight, unlike
+// canAccessModule() which treats a blank designation as "full access" for
+// legacy authority accounts. A general member (no designation) is never a
+// manager here, so only genuine admins and the designated Librarian pass.
+export function canManageProgramRegistration(user) {
+  if (!user) return false;
+  if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') return true;
+  return (
+    user.status === 'APPROVED' &&
+    Boolean(user.designation) &&
+    PROGRAM_REGISTRATION_MANAGERS.includes(user.designation)
+  );
 }
 
 // The role a member effectively presents. A President / Secretary / Executive

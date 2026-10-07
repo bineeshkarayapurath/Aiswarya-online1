@@ -26,6 +26,24 @@ async function requireAuth(req, res, next) {
   }
 }
 
+// Best-effort authentication for endpoints reachable by the public as well as
+// by a signed-in member (the program registration form). A valid token attaches
+// req.user; a missing or invalid one simply continues anonymously instead of
+// returning 401.
+async function optionalAuth(req, res, next) {
+  try {
+    const header = req.headers.authorization;
+    if (header && header.startsWith('Bearer ')) {
+      const payload = jwt.verify(header.split(' ')[1], config.JWT_SECRET);
+      const user = await User.findById(payload.id);
+      if (user) req.user = user;
+    }
+  } catch (err) {
+    // Ignore — the request proceeds as a public one.
+  }
+  return next();
+}
+
 function requireSuperAdmin(req, res, next) {
   if (!req.user || (req.user.role !== config.ROLES.SUPER_ADMIN && req.user.role !== config.ROLES.ADMIN)) {
     return res.status(403).json({ message: 'Access denied' });
@@ -97,6 +115,7 @@ function requireOfficerOrAdmin(allowed) {
 module.exports = {
   signToken,
   requireAuth,
+  optionalAuth,
   requireSuperAdmin,
   requireMember,
   requireDesignations,

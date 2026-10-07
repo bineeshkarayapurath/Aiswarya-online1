@@ -7,7 +7,7 @@ import { useTheme } from '../context/ThemeContext';
 import { resolveMedia } from '../api/client';
 import { roleLabel } from '../lib/permissions';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaBookOpen, FaShieldAlt, FaImages, FaSun, FaMoon, FaChevronDown, FaUser } from 'react-icons/fa';
+import { FaBookOpen, FaShieldAlt, FaImages, FaSun, FaMoon, FaChevronDown, FaUser, FaMusic } from 'react-icons/fa';
 
 function Avatar({ user, name, className = '' }) {
   const [broken, setBroken] = useState(false);
@@ -199,6 +199,15 @@ export default function Navbar() {
                 >
                   <FaImages className="text-sm" />
                   {t('nav.gallery')}
+                </Link>
+              )}
+              {featureEnabled('enableProgramRegistration') && (
+                <Link
+                  to="/program-registration"
+                  className="hidden items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-emerald-900 transition hover:bg-emerald-900/10 md:flex dark:text-emerald-300 dark:hover:bg-white/10"
+                >
+                  <FaMusic className="text-sm" />
+                  {t('nav.programRegistration')}
                 </Link>
               )}
               <Link

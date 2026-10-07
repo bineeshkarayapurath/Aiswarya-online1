@@ -23,6 +23,7 @@ import {
   Boxes,
   Receipt,
   HeartPulse,
+  Music,
 } from 'lucide-react';
 import { StatusBadge } from '../components/StatusBadge';
 import Spinner from '../components/Spinner';
@@ -35,6 +36,7 @@ import ReceiptsAndVouchers from '../components/ReceiptsAndVouchers';
 import CommunityServicePanel from '../components/CommunityServicePanel';
 import ExecutiveCommittee from '../components/ExecutiveCommittee';
 import ProgramApprovals from '../components/ProgramApprovals';
+import ProgramRegistrationPanel from '../components/ProgramRegistrationPanel';
 import AssetsPanel from '../components/AssetsPanel';
 import { canAccessModule, effectiveRole, roleIsDesignationDerived, roleLabel } from '../lib/permissions';
 import { moduleEnabled } from '../lib/club';
@@ -94,6 +96,14 @@ const MODULES = [
     icon: NotebookPen,
     chip: 'bg-cyan-100 text-cyan-800',
     card: 'hover:border-cyan-600/40',
+  },
+  {
+    key: 'programRegistration',
+    titleKey: 'admin.modules.programRegistration.title',
+    descKey: 'admin.modules.programRegistration.desc',
+    icon: Music,
+    chip: 'bg-violet-100 text-violet-800',
+    card: 'hover:border-violet-600/40',
   },
   {
     key: 'accounts',
@@ -234,6 +244,7 @@ export default function AuthorityDashboard() {
             {active.key === 'bala' && <CommitteePanel committeeName="Bala Vedi" />}
             {active.key === 'yuvatha' && <CommitteePanel committeeName="Yuvatha" />}
             {active.key === 'programs' && <ProgramsPanel />}
+            {active.key === 'programRegistration' && <ProgramRegistrationPanel />}
             {active.key === 'accounts' && <AccountsPanel />}
             {active.key === 'vouchers' && <ReceiptsAndVouchers />}
             {active.key === 'communityService' && <CommunityServicePanel />}
@@ -242,7 +253,7 @@ export default function AuthorityDashboard() {
             {active.key === 'issues' && <BorrowingPanel />}
             {active.key === 'committee' && <ExecutiveCommittee />}
             {active.key === 'assets' && <AssetsPanel />}
-            {!['approvals', 'members', 'committee', 'settings', 'vanitha', 'bala', 'yuvatha', 'programs', 'accounts', 'vouchers', 'communityService', 'gallery', 'catalog', 'issues'].includes(active.key) && (
+            {!['approvals', 'members', 'committee', 'settings', 'vanitha', 'bala', 'yuvatha', 'programs', 'programRegistration', 'accounts', 'vouchers', 'communityService', 'gallery', 'catalog', 'issues'].includes(active.key) && (
               <PlaceholderPanel module={active.data} />
             )}
           </ModuleModal>

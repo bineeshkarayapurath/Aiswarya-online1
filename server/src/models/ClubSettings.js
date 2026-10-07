@@ -24,6 +24,11 @@ const ClubSettingsSchema = new mongoose.Schema(
     // both are appended to official PDF documents and letterheads.
     secretarySignatureUrl: { type: String, default: '' },
     presidentSignatureUrl: { type: String, default: '' },
+    // Master switch for the New Year Annual Celebration program registration.
+    // When false, members and the public cannot register and the entry form /
+    // their own registration list is hidden from the member profile. The admin
+    // panel always shows the register so it can be managed.
+    programRegistrationOpen: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

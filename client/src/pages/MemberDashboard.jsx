@@ -9,9 +9,11 @@ import PublicCatalog from '../components/PublicCatalog';
 import { StatusBadge } from '../components/StatusBadge';
 import CommitteeManagementPanel from '../components/CommitteeManagementPanel';
 import MemberReceipts from '../components/MemberReceipts';
+import MemberProgramRegistrations from '../components/MemberProgramRegistrations';
+import ProgramRegistrationPanel from '../components/ProgramRegistrationPanel';
 import BookAssistant from '../components/BookAssistant';
 import { featureEnabled, subcommitteeEnabled, CLUB } from '../lib/club';
-import { roleLabel } from '../lib/permissions';
+import { roleLabel, canManageProgramRegistration } from '../lib/permissions';
 import {
   FaFilePdf,
   FaIdCardAlt,
@@ -22,6 +24,7 @@ import {
   FaUsers,
   FaBookOpen,
   FaCheckCircle,
+  FaMusic,
 } from 'react-icons/fa';
 
 export default function MemberDashboard() {
@@ -110,6 +113,11 @@ export default function MemberDashboard() {
       ['President', 'Secretary'].includes(s.role) &&
       ['Vanitha Vedi', 'Bala Vedi', 'Yuvatha'].includes(s.committeeName)
   );
+
+  // Admins and the designated Librarian get full oversight of the New Year
+  // program registration lists right on their profile; every other member sees
+  // only their own entries. Mirrors the server-side route guard.
+  const canManageProgramRegistrations = canManageProgramRegistration(m);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
@@ -254,6 +262,22 @@ export default function MemberDashboard() {
         </motion.div>
       </div>
 
+      {featureEnabled('enableProgramRegistration') &&
+        (canManageProgramRegistrations ? (
+          <div className="mt-10 border-t border-slate-200 pt-10">
+            <div className="mb-5 flex items-center gap-2">
+              <FaMusic className="text-gold" />
+              <h2 className="text-lg font-bold text-emerald-900">
+                New Year 2027 Annual Celebration — Registration Management
+              </h2>
+            </div>
+            <ProgramRegistrationPanel />
+          </div>
+        ) : (
+          <div className="mt-10">
+            <MemberProgramRegistrations member={m} />
+          </div>
+        ))}
       {isCommitteeOfficer && (
         <CommitteeManagementPanel />
       )}
