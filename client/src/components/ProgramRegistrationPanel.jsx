@@ -133,7 +133,21 @@ export default function ProgramRegistrationPanel() {
     const next = !open;
     setToggling(true);
     try {
-      const res = await api.put('/admin/registrations/settings', { open: next });
+      let res;
+      try {
+        res = await api.put('/admin/registrations/settings', { open: next });
+      } catch (err) {
+        const status = err.response?.status;
+        if (status === 404) {
+          try {
+            res = await api.put('/admin/program-registrations/settings', { open: next });
+          } catch (err2) {
+            throw err2;
+          }
+        } else {
+          throw err;
+        }
+      }
       setOpen(Boolean(res.data.open));
       toast.success(res.data.message);
     } catch (e) {

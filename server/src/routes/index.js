@@ -162,7 +162,13 @@ router.put(
 // route is declared before the :id route so "settings" is not read as a
 // registration id.
 router.get('/admin/registrations', requireAuth, requireOfficerOrAdmin(PROGRAM_REG_MANAGERS), registrations.listAdmin);
+router.get('/admin/program-registrations', requireAuth, requireOfficerOrAdmin(PROGRAM_REG_MANAGERS), registrations.listAdmin);
 router.put('/admin/registrations/settings', requireAuth, requireOfficerOrAdmin(PROGRAM_REG_MANAGERS), registrations.updateConfig);
+router.patch('/admin/registrations/settings', requireAuth, requireOfficerOrAdmin(PROGRAM_REG_MANAGERS), registrations.updateConfig);
+router.post('/admin/registrations/settings', requireAuth, requireOfficerOrAdmin(PROGRAM_REG_MANAGERS), registrations.updateConfig);
+router.put('/admin/program-registrations/settings', requireAuth, requireOfficerOrAdmin(PROGRAM_REG_MANAGERS), registrations.updateConfig);
+router.patch('/admin/program-registrations/settings', requireAuth, requireOfficerOrAdmin(PROGRAM_REG_MANAGERS), registrations.updateConfig);
+router.post('/admin/program-registrations/settings', requireAuth, requireOfficerOrAdmin(PROGRAM_REG_MANAGERS), registrations.updateConfig);
 router.get('/admin/registrations/:id', requireAuth, requireOfficerOrAdmin(PROGRAM_REG_MANAGERS), registrations.getOne);
 router.delete('/admin/registrations/:id', requireAuth, requireOfficerOrAdmin(PROGRAM_REG_MANAGERS), registrations.remove);
 
