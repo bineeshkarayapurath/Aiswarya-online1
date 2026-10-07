@@ -122,17 +122,17 @@ export default function MemberDashboard() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
       {/* Personal profile banner */}
-      <div className="mb-8 flex flex-wrap items-center gap-5 rounded-2xl bg-gradient-to-r from-emerald-950 via-emerald-900 to-emerald-800 p-6 shadow-lg">
+      <div className="mb-8 flex flex-col items-center gap-5 overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-950 via-emerald-900 to-emerald-800 p-6 text-center shadow-lg sm:flex-row sm:flex-wrap sm:items-center sm:overflow-visible sm:text-left">
         <div className="relative shrink-0">
           {photoSrc && !photoBroken ? (
             <img
               src={photoSrc}
               alt="profile"
               onError={() => setPhotoBroken(true)}
-              className="h-32 w-32 rounded-full border-2 border-emerald-500 bg-white object-cover shadow-md"
+              className="h-28 w-28 rounded-full border-2 border-emerald-500 bg-white object-cover shadow-md sm:h-32 sm:w-32"
             />
           ) : (
-            <span className="flex h-32 w-32 items-center justify-center rounded-full border-2 border-emerald-500 bg-emerald-900 text-3xl font-extrabold text-gold-300 shadow-md">
+            <span className="flex h-28 w-28 items-center justify-center rounded-full border-2 border-emerald-500 bg-emerald-900 text-3xl font-extrabold text-gold-300 shadow-md sm:h-32 sm:w-32">
               {initials(m.fullName)}
             </span>
           )}
@@ -142,11 +142,11 @@ export default function MemberDashboard() {
             </span>
           )}
         </div>
-        <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-extrabold text-white sm:text-3xl">
+        <div className="w-full min-w-0 flex-1 sm:w-auto">
+          <h1 className="break-words text-2xl font-extrabold text-white sm:text-3xl">
             Welcome, {m.fullName?.split(' ')[0] || 'Member'}
           </h1>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
             <StatusBadge status={m.status} />
             <span className="rounded-full bg-gold px-3 py-1 text-[11px] font-extrabold uppercase tracking-wide text-emerald-950">
               {roleLabel(m)}
@@ -158,7 +158,7 @@ export default function MemberDashboard() {
             )}
           </div>
         </div>
-        <div className="flex gap-3">
+        <div className="flex w-full flex-wrap items-center justify-center gap-3 sm:w-auto sm:justify-start">
           <button onClick={() => download('idcard')} className="btn-gold !py-2 text-sm">
             <FaIdCardAlt /> Download ID Card
           </button>
