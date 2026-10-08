@@ -30,9 +30,6 @@ const EXEC_OFFICERS = [
   'Joint Secretary',
   'Executive Committee Member',
 ];
-// New Year program registration is viewable / manageable by the executive
-// officers AND by the Librarian designated on the Executive Committee list.
-const PROGRAM_REG_MANAGERS = [...EXEC_OFFICERS, 'Librarian'];
 const GUILD_LEADS = ['President', 'Secretary'];
 
 const router = express.Router();

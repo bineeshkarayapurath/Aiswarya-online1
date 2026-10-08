@@ -134,6 +134,7 @@ export const clubConfig = {
     enableCatalog: true, // Library Books Catalog
     enableIssues: true, // Book Issue & Return Register
     enablePrograms: true, // Program & Minutes Register
+    enableProgramRegistration: true, // Event & Program registration (create events, sub-programs, registrations)
     enableAccounts: true, // Accounts & Finance
     enableVouchers: true, // Receipts & Vouchers (auto-syncs with Accounts)
     enableCommunityService: true, // Community Support / relief fund & aid
@@ -169,6 +170,7 @@ export function moduleEnabled(moduleKey) {
     catalog: 'enableCatalog',
     issues: 'enableIssues',
     programs: 'enablePrograms',
+    programRegistration: 'enableProgramRegistration',
     accounts: 'enableAccounts',
     vouchers: 'enableVouchers',
     communityService: 'enableCommunityService',

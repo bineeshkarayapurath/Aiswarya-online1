@@ -9,11 +9,10 @@ import PublicCatalog from '../components/PublicCatalog';
 import { StatusBadge } from '../components/StatusBadge';
 import CommitteeManagementPanel from '../components/CommitteeManagementPanel';
 import MemberReceipts from '../components/MemberReceipts';
-import MemberProgramRegistrations from '../components/MemberProgramRegistrations';
-import ProgramRegistrationPanel from '../components/ProgramRegistrationPanel';
+import EventProgramRegistrations from '../components/EventProgramRegistrations';
 import BookAssistant from '../components/BookAssistant';
 import { featureEnabled, subcommitteeEnabled, CLUB } from '../lib/club';
-import { roleLabel, isProgramRegistrationLibrarian } from '../lib/permissions';
+import { roleLabel } from '../lib/permissions';
 import {
   FaFilePdf,
   FaIdCardAlt,
@@ -24,7 +23,6 @@ import {
   FaUsers,
   FaBookOpen,
   FaCheckCircle,
-  FaMusic,
 } from 'react-icons/fa';
 
 export default function MemberDashboard() {
@@ -113,11 +111,6 @@ export default function MemberDashboard() {
       ['President', 'Secretary'].includes(s.role) &&
       ['Vanitha Vedi', 'Bala Vedi', 'Yuvatha'].includes(s.committeeName)
   );
-
-  // Only the designated Librarian gets the management view (categorised list +
-  // toggle) on their own profile. Full admins manage it from the Admin panel,
-  // and every other member sees only their own entries and submission status.
-  const showProgramRegistrationManager = isProgramRegistrationLibrarian(m);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
@@ -262,12 +255,11 @@ export default function MemberDashboard() {
         </motion.div>
       </div>
 
-      {featureEnabled('enableProgramRegistration') &&
-
+      {featureEnabled('enableProgramRegistration') && (
           <div className="mt-10">
-            <MemberProgramRegistrations member={m} />
+            <EventProgramRegistrations member={m} />
           </div>
-        ))}
+      )}
       {isCommitteeOfficer && (
         <CommitteeManagementPanel />
       )}

@@ -30,7 +30,7 @@ export const MODULE_PERMISSIONS = {
   catalog: ['Librarian'],
   issues: ['Librarian'],
   programs: EXEC_GROUP,
-  // New Year 2027 program registration: executive officers plus the Librarian
+  // Event & Program registration: executive officers plus the Librarian
   // designated on the Executive Committee list.
   programRegistration: [...EXEC_GROUP, 'Librarian'],
   accounts: ['Treasurer'],

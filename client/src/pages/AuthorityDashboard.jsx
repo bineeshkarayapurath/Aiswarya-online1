@@ -36,7 +36,8 @@ import ReceiptsAndVouchers from '../components/ReceiptsAndVouchers';
 import CommunityServicePanel from '../components/CommunityServicePanel';
 import ExecutiveCommittee from '../components/ExecutiveCommittee';
 import ProgramApprovals from '../components/ProgramApprovals';
-import ProgramRegistrationPanel from '../components/ProgramRegistrationPanel';
+import EventProgramManager from '../components/EventProgramManager';
+import EventRegistrationsList from '../components/EventRegistrationsList';
 import AssetsPanel from '../components/AssetsPanel';
 import { canAccessModule, effectiveRole, roleIsDesignationDerived, roleLabel } from '../lib/permissions';
 import { moduleEnabled } from '../lib/club';
@@ -244,7 +245,7 @@ export default function AuthorityDashboard() {
             {active.key === 'bala' && <CommitteePanel committeeName="Bala Vedi" />}
             {active.key === 'yuvatha' && <CommitteePanel committeeName="Yuvatha" />}
             {active.key === 'programs' && <ProgramsPanel />}
-            {active.key === 'programRegistration' && <ProgramRegistrationPanel />}
+            {active.key === 'programRegistration' && <EventProgramModule />}
             {active.key === 'accounts' && <AccountsPanel />}
             {active.key === 'vouchers' && <ReceiptsAndVouchers />}
             {active.key === 'communityService' && <CommunityServicePanel />}
@@ -297,6 +298,35 @@ function ModuleModal({ module, onClose, children }) {
         </div>
         <div className="flex-1 overflow-y-auto bg-slate-50/60 p-6">{children}</div>
       </motion.div>
+    </div>
+  );
+}
+
+function EventProgramModule() {
+  const [tab, setTab] = useState('manage');
+  const tabs = [
+    { key: 'manage', label: 'Events & Sub-programs' },
+    { key: 'registrations', label: 'Registrations List' },
+  ];
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2">
+        {tabs.map((tb) => (
+          <button
+            key={tb.key}
+            onClick={() => setTab(tb.key)}
+            className={`rounded-xl px-4 py-2 text-xs font-extrabold transition ${
+              tab === tb.key ? 'bg-emerald-900 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            {tb.label}
+          </button>
+        ))}
+      </div>
+      <div className="transition-all">
+        {tab === 'manage' && <EventProgramManager />}
+        {tab === 'registrations' && <EventRegistrationsList />}
+      </div>
     </div>
   );
 }
