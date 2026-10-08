@@ -236,7 +236,12 @@ function cleanText(v) {
 // Returns true when an image was actually embedded. Callers use that to decide
 // whether to print the "Photo" placeholder: an unreadable photo must not leave
 // a blank frame that looks like the member supplied no picture.
-async function drawMemberPhoto(doc, stored, { x, y, w, h, fit }) {
+//
+// `cover` behaves like CSS object-fit: cover — the photo is scaled to fill the
+// whole box and the overflow is cropped away, so a rectangle photo never leaves
+// bars of the cream background above or below. Without it the default is
+// object-fit: contain (the image shrinks to fit and letterboxes inside the box).
+async function drawMemberPhoto(doc, stored, { x, y, w, h, fit, cover = false }) {
   const raw = String(stored || '').trim();
   if (!raw) return false;
   const img = await resolveMediaImage(raw, { subdir: 'media-cache', label: 'photo' });
@@ -250,6 +255,19 @@ async function drawMemberPhoto(doc, stored, { x, y, w, h, fit }) {
     return false;
   }
   try {
+    if (cover) {
+      const meta = doc.openImage(img);
+      const scale = Math.max(w / meta.width, h / meta.height);
+      const dw = meta.width * scale;
+      const dh = meta.height * scale;
+      const dx = x + (w - dw) / 2;
+      const dy = y + (h - dh) / 2;
+      doc.save();
+      doc.rect(x, y, w, h).clip();
+      doc.image(img, dx, dy, { width: dw, height: dh });
+      doc.restore();
+      return true;
+    }
     doc.image(img, x, y, { fit: fit || [w, h], align: 'center', valign: 'center' });
     return true;
   } catch (e) {
@@ -518,6 +536,7 @@ async function generateIdCardPdf(user) {
     y: photoY,
     w: photoW,
     h: photoH,
+    cover: true,
   });
   // Same placeholder the application prints: an unreadable photo must read as
   // "a photo belongs here", not as a template that failed to draw.
@@ -531,7 +550,7 @@ async function generateIdCardPdf(user) {
   }
 
   // QR code — far right, vertically centered in the body
-  const qrSize = 15.5 * MM;
+  const qrSize = 17 * MM;
   const qrX = CARD_W - qrSize - 2.6 * MM;
   const qrY = bodyTop + (bodyH - qrSize) / 2;
   doc.roundedRect(qrX - 0.8 * MM, qrY - 0.8 * MM, qrSize + 1.6 * MM, qrSize + 1.6 * MM, 1 * MM)
@@ -681,27 +700,24 @@ async function generateIdCardPdf(user) {
 
   doc.moveTo(3 * MM, dividerY).lineTo(CARD_W - 3 * MM, dividerY).lineWidth(0.5).strokeColor(gold).stroke();
 
-  // Issued date (left) and member ID (right) share a single row
+  // Issued date on the back (no Member ID on this side — it lives on the front)
   doc.font('Helvetica').fontSize(5.4).fillColor(inkSoft);
-  doc.text(`Issued: ${formatDate(user.approvedAt)}`, 3 * MM, 37.6 * MM, { width: 42 * MM });
-  doc.font('Helvetica-Bold').text(user.membershipId || '', CARD_W - 28 * MM, 37.6 * MM, {
-    width: 25 * MM,
-    align: 'right',
-  });
+  doc.text(`Issued: ${formatDate(user.approvedAt)}`, 3 * MM, 37.6 * MM, { width: CARD_W - 6 * MM });
 
   // ---- Secretary's signature ----
-  // The club's stored Secretary signature is printed directly on the rule. With
-  // no Secretary signature configured the President's takes the same rule, so a
-  // card for a club that only stores one officer image is never unsigned; only
-  // when neither is stored does the rule simply stay empty, as it always has.
+  // The club's stored Secretary signature is printed directly on the rule above
+  // the "Secretary" label, bottom-right. With no Secretary signature configured
+  // the President's takes the same rule, so a card for a club that only stores
+  // one officer image is never unsigned; only when neither is stored does the
+  // rule simply stay empty, as it always has.
   const officerSignatures = await getClubSignatures();
   await drawSignature(
     doc,
     officerSignatures.secretarySignatureUrl || officerSignatures.presidentSignatureUrl,
     {
-      x: 5 * MM,
+      x: CARD_W - 25 * MM,
       y: 41.3 * MM,
-      w: 43 * MM,
+      w: 22 * MM,
       h: 6.5 * MM,
     },
   );

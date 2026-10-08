@@ -149,7 +149,7 @@ function FrontFace({ user, qrValue }) {
 
         {/* QR code — far right */}
         <div className="shrink-0 self-center rounded-md bg-white p-1 shadow">
-          <QRCodeSVG value={qrValue} size={78} fgColor={clubConfig.themeColors.qr} />
+          <QRCodeSVG value={qrValue} size={88} fgColor={clubConfig.themeColors.qr} />
         </div>
       </div>
     </div>
