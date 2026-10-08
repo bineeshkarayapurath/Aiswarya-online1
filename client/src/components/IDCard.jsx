@@ -226,16 +226,17 @@ function BackFace({ user }) {
         <p className="mb-1 text-[9px]">Issued: {user.approvedAt?.slice(0, 10) || '—'}</p>
         <div className="flex items-end justify-between">
           <div className="flex w-[47%] flex-col items-center">
-            {/* The club's stored Secretary signature, resting on the rule (or
-                the President's when no Secretary image is stored). With neither
-                configured the rule stays blank, as before. */}
-            <SignatureRule url={signatureUrl} />
+            <div className="h-[26px] w-full border-b border-gold" />
             <p className="mt-0.5 text-center text-[9px] font-bold text-slate-600">
               Authorised Signature
             </p>
           </div>
           <div className="flex w-[22%] flex-col items-center">
-            <div className="h-[26px] w-full border-b border-gold" />
+            {/* The club's stored Secretary signature, resting on the rule right
+                above the "Secretary" label (or the President's when no
+                Secretary image is stored). With neither configured the rule
+                stays blank, as before. */}
+            <SignatureRule url={signatureUrl} />
             <p className="mt-0.5 text-center text-[9px] font-bold text-slate-600">Secretary</p>
           </div>
         </div>
