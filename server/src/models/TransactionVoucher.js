@@ -12,8 +12,11 @@ const TransactionVoucherSchema = new mongoose.Schema(
 
     partyType: { type: String, enum: ['MEMBER', 'NON_MEMBER'], required: true },
     // The member's membershipId string (matches User.membershipId) when
-    // partyType is MEMBER. Kept as a string ref for simplicity.
+    // partyType is MEMBER. Kept as a string ref for backward compatibility.
     memberId: { type: String, default: '', index: true },
+    // Strong ownership reference to the actual User document to prevent
+    // stale/orphaned receipts from bleeding into re-assigned member accounts.
+    member: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null, index: true },
     partyName: { type: String, required: true },
     phone: { type: String, default: '' },
 

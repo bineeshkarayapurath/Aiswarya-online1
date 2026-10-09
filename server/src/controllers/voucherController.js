@@ -108,6 +108,7 @@ exports.createVoucher = async (req, res) => {
       voucherNo,
       partyType,
       memberId: partyType === 'MEMBER' ? resolvedMember.membershipId : '',
+      member: partyType === 'MEMBER' ? resolvedMember._id : null,
       partyName: name,
       phone: partyType === 'MEMBER' ? resolvedMember.phoneNumber : phoneNo,
       amount: Math.round(amt * 100) / 100,
@@ -190,13 +191,39 @@ exports.getVoucher = async (req, res) => {
   }
 };
 
-// Member-facing: every receipt issued against the logged-in member's ID.
+// Member-facing: every receipt issued against the logged-in member's account.
 exports.myReceipts = async (req, res) => {
   try {
     const memberId = req.user.membershipId;
-    if (!memberId) return res.json({ vouchers: [], count: 0 });
-    const list = await TransactionVoucher.find({ memberId }).sort({ createdAt: -1 }).lean();
-    return res.json({ vouchers: list.map(toView), count: list.length });
+    if (!memberId && !req.user._id) return res.json({ vouchers: [], count: 0 });
+    const list = await TransactionVoucher.find({
+      type: 'RECEIPT',
+      $and: [
+        {
+          $or: [
+            { member: req.user._id },
+            ...(memberId ? [{ memberId }] : []),
+          ],
+        },
+        { $or: [{ partyType: { $ne: 'MEMBER' } }, { partyType: 'MEMBER' }] },
+      ],
+      // Ensure we only get receipts for this specific user when member ref exists
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Additional safeguard: if member ref is set, filter to match current user
+    const filtered = list.filter((v) => {
+      if (v.member) {
+        return String(v.member) === String(req.user._id);
+      }
+      if (memberId && v.memberId) {
+        return String(v.memberId) === String(memberId);
+      }
+      return true;
+    });
+
+    return res.json({ vouchers: filtered.map(toView), count: filtered.length });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
