@@ -1,7 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
-import DevTools from './components/DevTools';
 import Landing from './pages/Landing';
 import Gallery from './pages/Gallery';
 import Register from './pages/Register';
@@ -10,8 +9,6 @@ import MemberLogin from './pages/MemberLogin';
 import MemberDashboard from './pages/MemberDashboard';
 import AuthorityLogin from './pages/AuthorityLogin';
 import AuthorityDashboard from './pages/AuthorityDashboard';
-import IDCardPreview from './pages/IDCardPreview';
-import ApplicationPDFPreview from './pages/ApplicationPDFPreview';
 import { useAuth } from './context/AuthContext';
 import { isAuthorityUser } from './lib/permissions';
 
@@ -95,14 +92,10 @@ export default function App() {
               </AdminOnly>
             }
           />
-          {/* Component previews */}
-          <Route path="/id-card-preview" element={<IDCardPreview />} />
-          <Route path="/application-pdf-preview" element={<ApplicationPDFPreview />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
       <Footer />
-      <DevTools />
     </div>
   );
 }

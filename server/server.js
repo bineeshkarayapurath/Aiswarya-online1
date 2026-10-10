@@ -3,8 +3,10 @@ const path = require('path');
 const fs = require('fs');
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const config = require('./src/config/constants');
 const connectDB = require('./src/config/db');
+const { resyncDesignationRoles } = require('./src/services/roleService');
 const apiRoutes = require('./src/routes/index');
 
 const app = express();
@@ -39,6 +41,49 @@ fs.mkdirSync(path.join(config.STORAGE_DIR, 'qr'), { recursive: true });
 // mistyped password locking out everyone in the hall. Exactly one hop, so a
 // client cannot forge X-Forwarded-For to slip the limiter.
 app.set('trust proxy', 1);
+
+// Security response headers via helmet. The defaults are close to what we want;
+// the deltas below exist so hardening does not break the app:
+//
+//  - Content-Security-Policy is spelled out because this service serves the
+//    built SPA (index.html + hashed JS/CSS) and loads Google Fonts. 'unsafe-
+//    inline' is allowed for styles only (React inline style attributes /
+//    Tailwind), never for scripts. connect-src carries the allowed API origins
+//    so the separately-hosted frontend can still call this API.
+//  - crossOriginResourcePolicy is set to 'cross-origin' so /uploads images are
+//    not blocked when the frontend is served from a different origin (Vercel).
+//  - upgrade-insecure-requests is disabled outside production, or it would
+//    rewrite http://localhost to https:// and break local development.
+const connectOrigins = Array.from(
+  new Set(
+    [...config.CLIENT_URLS, config.PUBLIC_API_URL]
+      .map((o) => String(o || '').trim().replace(/\/+$/, ''))
+      .filter(Boolean)
+  )
+);
+
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      useDefaults: true,
+      directives: {
+        defaultSrc: ["'self'"],
+        baseUri: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+        imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
+        connectSrc: ["'self'", ...connectOrigins],
+        objectSrc: ["'none'"],
+        frameAncestors: ["'none'"],
+        formAction: ["'self'"],
+        upgradeInsecureRequests: config.NODE_ENV === 'production' ? [] : null,
+      },
+    },
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  })
+);
 
 // CORS, via the cors package (already a dependency). It reflects the request
 // origin when it matches an allowed frontend domain, sets the CORS headers, and
@@ -199,13 +244,31 @@ if (fs.existsSync(path.join(clientDist, 'index.html'))) {
   });
 }
 
-connectDB().then(() => {
+connectDB().then(async () => {
+  // Align every stored role with the current admin rule once per boot, so a
+  // grant left over from an earlier rule does not linger as a stale ADMIN. A
+  // failure here must not stop the server: requests are also authorised live.
+  try {
+    await resyncDesignationRoles();
+  } catch (err) {
+    console.error('[ROLES] startup re-sync failed:', err.message);
+  }
+
   app.listen(config.PORT, () => {
     console.log(
       `[${config.CLUB.name}] Server running on http://localhost:${config.PORT}`
     );
     console.log(`[CORS] Allowed origins: ${config.CLIENT_URLS.join(', ')}`);
     console.log(`[STORAGE] ${config.STORAGE_DIR}`);
+    console.log(`[ROLES] ADMIN allowlist: ${config.ADMIN_MEMBER_IDS.join(', ') || '(none)'} + ${config.ADMIN_DESIGNATIONS.join(', ')}`);
+    if (!process.env.FIELD_ENCRYPTION_KEY) {
+      console.warn(
+        '[CRYPTO] FIELD_ENCRYPTION_KEY is not set, so field-level encryption ' +
+          'falls back to JWT_SECRET. Set a dedicated, STABLE key before storing ' +
+          'member data: changing it later makes encrypted fields (address, email, ' +
+          'occupation, education) unreadable.'
+      );
+    }
     // Photos are stored on local disk unless an ImgBB key is configured. On a
     // host with an ephemeral filesystem (Render, most container platforms) every
     // redeploy or restart wipes that disk while MongoDB keeps the album records,

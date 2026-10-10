@@ -55,6 +55,25 @@ const authLimiter = rateLimit({
   },
 });
 
+// Registration is an unauthenticated write that stores a document and (in some
+// flows) uploads a file, so it is throttled on EVERY request rather than only
+// failures — unlike authLimiter, a run of successful sign-ups is exactly the
+// abuse this guards against. Generous enough that a family or a club desk
+// registering several members on one connection is never blocked.
+const signupLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 20,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: {
+    message: 'Too many registration attempts from your device. Please try again later.',
+  },
+  handler: (req, res, next, options) => {
+    res.setHeader('Retry-After', Math.ceil(options.windowMs / 1000));
+    res.status(options.statusCode).json(options.message);
+  },
+});
+
 // Coarse per-IP brake on the AI Book Assistant, layered over the controller's
 // per-member hourly quota. Unlike authLimiter this counts every request,
 // including successes, because each one bills the provider. Keyed per user id
@@ -80,4 +99,4 @@ const aiLimiter = rateLimit({
   },
 });
 
-module.exports = { authLimiter, aiLimiter, WINDOW_MS, MAX_FAILURES };
+module.exports = { authLimiter, signupLimiter, aiLimiter, WINDOW_MS, MAX_FAILURES };

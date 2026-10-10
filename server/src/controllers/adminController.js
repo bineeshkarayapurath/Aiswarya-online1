@@ -5,7 +5,7 @@ const User = require('../models/User');
 const Counter = require('../models/Counter');
 const { publicUrl } = require('../utils/storage');
 const { generateApplicationPdf, generateIdCardPdf } = require('../services/pdfService');
-const { effectiveRole, authorizedExecId, resyncDesignationRoles } = require('../services/roleService');
+const { effectiveRole, resyncDesignationRoles } = require('../services/roleService');
 const { ensureMembershipId, nextMembershipId } = require('../services/membershipService');
 const publicCache = require('../services/publicCache');
 
@@ -13,7 +13,6 @@ exports.listRequests = async (req, res) => {
   try {
     const status = req.query.status || 'PENDING_APPROVAL';
     const users = await User.find({ status }).sort({ createdAt: -1 });
-    const authExecId = await authorizedExecId();
     const items = users.map((u) => ({
       _id: u._id,
       fullName: u.fullName,
@@ -28,9 +27,10 @@ exports.listRequests = async (req, res) => {
       recommender: u.recommender,
       status: u.status,
       designation: u.designation || '',
-      // Effective, not stored, so a freshly designated President / Secretary is
-      // already recognised as ADMIN by the approvals screen.
-      role: effectiveRole(u, authExecId),
+      // Effective, not stored, so a freshly designated President / Secretary or
+      // an allowlisted member ID is already recognised as ADMIN by the approvals
+      // screen without waiting for their next login.
+      role: effectiveRole(u),
       createdAt: u.createdAt,
     }));
     return res.json({ requests: items });
@@ -42,22 +42,21 @@ exports.listRequests = async (req, res) => {
 // Approved members list. Photo URLs are normalised to fully-qualified public
 // URLs so the Approved Members table in the Authority Dashboard renders photos
 // regardless of how they were stored (relative /uploads/... vs CDN).
-// `role` is reported through effectiveRole() so a President / Secretary (and the
-// single authorised Executive Committee Member) shows as ADMIN here immediately,
-// without waiting for their next login to persist the auto-grant (and without
-// writing on every list request).
+// `role` is reported through effectiveRole() so only the admin allowlist and
+// President / Secretary show as ADMIN here, immediately and without writing on
+// every list request. Encrypted fields (address, email, ...) are decrypted
+// transparently by the User schema getters when toObject() runs below.
 exports.listAll = async (req, res) => {
   try {
     const users = await User.find({
       role: { $in: [config.ROLES.MEMBER, config.ROLES.ADMIN] },
     }).sort({ createdAt: -1 });
-    const authExecId = await authorizedExecId();
     const view = [];
     for (const u of users) {
       await ensureMembershipId(u);
       const obj = u.toObject();
       delete obj.lowerPhone;
-      obj.role = effectiveRole(obj, authExecId);
+      obj.role = effectiveRole(obj);
       obj.photoUrl = obj.photoUrl ? publicUrl(obj.photoUrl) : '';
       if (obj.applicationPdfUrl) obj.applicationPdfUrl = publicUrl(obj.applicationPdfUrl);
       if (obj.idCardPdfUrl) obj.idCardPdfUrl = publicUrl(obj.idCardPdfUrl);
@@ -410,45 +409,6 @@ exports.setDesignation = async (req, res) => {
   }
 };
 
-// Assign / update a user's top-level role (MEMBER / ADMIN). Only an admin
-// may perform this action.  Setting role to ADMIN grants the same
-// privileges as SUPER_ADMIN (full dashboard access, approvals, designation
-// management).
-exports.setRole = async (req, res) => {
-  try {
-    const { userId, role } = req.body;
-    if (!userId || !role) {
-      return res.status(400).json({ message: 'userId and role are required' });
-    }
-    const validRoles = [config.ROLES.MEMBER, config.ROLES.ADMIN];
-    if (!validRoles.includes(role)) {
-      return res
-        .status(400)
-        .json({ message: `Invalid role. Allowed: ${validRoles.join(', ')}` });
-    }
-    const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ message: 'User not found' });
-    if (user.role === config.ROLES.SUPER_ADMIN) {
-      return res.status(403).json({ message: 'Cannot modify a SUPER_ADMIN role' });
-    }
-    if (user.status !== config.STATUS.APPROVED) {
-      return res.status(400).json({ message: 'Only approved members can be assigned a role' });
-    }
-    user.role = role;
-    // An explicit assignment is the admin's decision: mark it manual so a later
-    // designation change will not auto-revoke it.
-    user.roleSource = 'manual';
-    await user.save();
-    publicCache.invalidate('stats');
-    return res.json({
-      message: `${user.fullName} is now ${role}`,
-      user: { _id: user._id, role: user.role, designation: user.designation || '', status: user.status },
-    });
-  } catch (err) {
-    return res.status(500).json({ message: err.message });
-  }
-};
-
 exports.getUserById = async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
@@ -622,7 +582,10 @@ exports.deleteUser = async (req, res) => {
     const { id } = req.params;
     const user = await User.findById(id);
     if (!user) return res.status(404).json({ message: 'User not found' });
-    if (user.role === config.ROLES.SUPER_ADMIN || user.role === config.ROLES.ADMIN) {
+    // Protect every genuine authority account — checked live against the admin
+    // rule, so an allowlisted ID or President / Secretary cannot be removed even
+    // if their stored role has not been re-synced yet.
+    if (effectiveRole(user) !== config.ROLES.MEMBER) {
       return res.status(403).json({ message: 'Cannot delete an authority account' });
     }
 

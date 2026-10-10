@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const config = require('../config/constants');
 const User = require('../models/User');
+const { designationGrantsAdmin } = require('../services/roleService');
 
 function signToken(user) {
   return jwt.sign(
@@ -44,8 +45,12 @@ async function optionalAuth(req, res, next) {
   return next();
 }
 
+// Administrative authority, enforced live rather than trusting the stored role:
+// an account qualifies only if it is a SUPER_ADMIN or matches the admin rule
+// (membership ID on the allowlist, or President / Secretary). A stale or legacy
+// ADMIN role on any other account does NOT open these routes.
 function requireSuperAdmin(req, res, next) {
-  if (!req.user || (req.user.role !== config.ROLES.SUPER_ADMIN && req.user.role !== config.ROLES.ADMIN)) {
+  if (!req.user || (req.user.role !== config.ROLES.SUPER_ADMIN && !designationGrantsAdmin(req.user))) {
     return res.status(403).json({ message: 'Access denied' });
   }
   next();
@@ -62,17 +67,16 @@ function requireMember(req, res, next) {
 }
 
 // Designation-scoped access for authority accounts. Must run AFTER
-// requireSuperAdmin. An administrator with no designation (legacy default)
-// keeps full access so existing accounts are never locked out. ADMIN and
-// SUPER_ADMIN roles are never scoped by designation — they hold full module
-// access (System Settings, Approvals, etc.) regardless of their committee
-// title, mirroring the frontend canAccessModule() override.
-const ADMIN_ROLES = [config.ROLES.ADMIN, config.ROLES.SUPER_ADMIN];
+// requireSuperAdmin. A genuine admin (SUPER_ADMIN, or the admin allowlist /
+// President / Secretary) is never scoped by designation and keeps full module
+// access, mirroring the frontend canAccessModule() override. The bypass is
+// evaluated live against the admin rule, not the stored role, so a stale ADMIN
+// grant cannot widen access.
 function requireDesignations(allowed) {
   const roles = Array.isArray(allowed) ? allowed : [allowed];
   return (req, res, next) => {
     if (!req.user) return res.status(403).json({ message: 'Access denied' });
-    if (ADMIN_ROLES.includes(req.user.role)) return next();
+    if (req.user.role === config.ROLES.SUPER_ADMIN || designationGrantsAdmin(req.user)) return next();
     if (!req.user.designation) return next();
     if (!roles.includes(req.user.designation)) {
       return res.status(403).json({
@@ -100,7 +104,9 @@ function requireOfficerOrAdmin(allowed) {
   return (req, res, next) => {
     const u = req.user;
     if (!u) return res.status(403).json({ message: 'Access denied' });
-    if (ADMIN_ROLES.includes(u.role)) return next();
+    // Full admins (SUPER_ADMIN or the admin allowlist / President / Secretary)
+    // reach every module; this is checked live against the rule, not stored role.
+    if (u.role === config.ROLES.SUPER_ADMIN || designationGrantsAdmin(u)) return next();
     if (u.status === config.STATUS.APPROVED && u.designation && roles.includes(u.designation)) {
       return next();
     }

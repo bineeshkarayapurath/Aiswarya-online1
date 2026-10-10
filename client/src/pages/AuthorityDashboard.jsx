@@ -683,9 +683,11 @@ function ApprovedMembers() {
                   <td className="whitespace-nowrap px-5 py-3 text-slate-500">{m.designation || 'Member'}</td>
                   <td className="whitespace-nowrap px-5 py-3">
                     {/* The ADMIN badge is reserved for the accounts that actually
-                        hold administrative authority: the President, the
-                        Secretary and the authorised Executive Committee Member.
-                        Every other officer shows only their designation. */}
+                        hold administrative authority: the membership IDs on the
+                        admin allowlist (ALC-001 / ALC-002 / ALC-003) and the
+                        President / Secretary. Every other officer — including
+                        Vice Presidents and other Executive Committee members —
+                        shows only their designation. */}
                     {effectiveRole(m) === 'ADMIN' ? (
                       <span
                         className="rounded-full bg-emerald-900 px-2.5 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-white"

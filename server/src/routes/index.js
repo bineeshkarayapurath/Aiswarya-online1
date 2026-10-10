@@ -2,7 +2,13 @@ const express = require('express');
 const upload = require('../middleware/upload');
 const { galleryUpload } = upload;
 const { requireAuth, optionalAuth, requireSuperAdmin, requireMember, requireDesignations, requireOfficerOrAdmin } = require('../middleware/auth');
-const { authLimiter, aiLimiter } = require('../middleware/rateLimit');
+const { authLimiter, signupLimiter, aiLimiter } = require('../middleware/rateLimit');
+const {
+  registerRules,
+  loginRules,
+  setPasswordRules,
+  adminLoginRules,
+} = require('../middleware/validate');
 const auth = require('../controllers/authController');
 const bookAssistant = require('../controllers/bookAssistantController');
 const admin = require('../controllers/adminController');
@@ -53,16 +59,16 @@ router.post('/upload', galleryUpload.array('photos', 20), uploadCtrl.uploadPhoto
 // Auth — phone number + bcrypt password. No OTP / SMS delivery anywhere.
 // authLimiter counts only failed attempts, so a correct sign-in is never
 // throttled while a sweep against set-password's date-of-birth check is.
-router.post('/auth/register', upload.single('photo'), auth.register);
-router.post('/auth/login', authLimiter, auth.login);
+router.post('/auth/register', signupLimiter, upload.single('photo'), registerRules, auth.register);
+router.post('/auth/login', authLimiter, loginRules, auth.login);
 // First-login password setup for accounts that predate the password field.
 // Only ever sets a FIRST password; it can never overwrite an existing one.
-router.post('/auth/set-password', authLimiter, auth.setPassword);
+router.post('/auth/set-password', authLimiter, setPasswordRules, auth.setPassword);
 router.get('/auth/me', requireAuth, auth.getMe);
 
 // Authority zone — same phone + password credential, gated on the account
 // actually holding an authority role (see authController.adminLogin).
-router.post('/auth/admin/login', authLimiter, auth.adminLogin);
+router.post('/auth/admin/login', authLimiter, adminLoginRules, auth.adminLogin);
 
 // Admin panel — Approval workflows & committee management (executive roles)
 router.post(
@@ -104,11 +110,10 @@ router.get(
   requireOfficerOrAdmin(EXEC_OFFICERS),
   admin.getUserById
 );
-// Top-level role assignment is an administrative action: restricted to the
-// President, Secretary and the authorised Executive Committee Member (the only
-// accounts holding the ADMIN role). The Approved Members table no longer offers
-// it, so nothing in the UI calls this route.
-router.post('/admin/set-role', requireAuth, requireSuperAdmin, admin.setRole);
+// NOTE: the manual /admin/set-role endpoint has been removed. Top-level ADMIN
+// authority is now derived strictly from the membership-ID allowlist and the
+// President / Secretary designations (see services/roleService.js); there is no
+// longer any API path that can grant ADMIN to an arbitrary account.
 router.delete(
   '/admin/users/:id',
   requireAuth,

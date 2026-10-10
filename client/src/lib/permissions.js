@@ -59,33 +59,47 @@ export function canManageModule(key, designation, role) {
 }
 
 // Designations that carry top-level admin access on their own. Mirrors the
-// server's config.ADMIN_DESIGNATIONS. The single authorised Executive Committee
-// Member is positional and resolved server-side (the first one designated), so it
-// is NOT listed here — the server reports it to the client as role === 'ADMIN'.
+// server's config.ADMIN_DESIGNATIONS.
 const ADMIN_GROUP = [DESIGNATIONS.PRESIDENT, DESIGNATIONS.SECRETARY];
+
+// Membership IDs that carry top-level admin access regardless of designation.
+// Mirrors the server's config.ADMIN_MEMBER_IDS (ALC-001 / ALC-002 / ALC-003).
+// This is the authoritative admin allowlist: no other Executive Committee
+// member, Vice President or general member ever shows the ADMIN badge.
+export const ADMIN_MEMBER_IDS = ['ALC-001', 'ALC-002', 'ALC-003'];
 
 export function isDesignationAdmin(designation) {
   return Boolean(designation) && ADMIN_GROUP.includes(designation);
 }
 
-// Does this account belong in the Authority Zone at all? Every executive
-// designation qualifies (they keep their module access), alongside ADMIN and
-// SUPER_ADMIN. Used to gate the dashboard route and its navbar entry so an
-// executive without the ADMIN role is still admitted.
+export function isMemberIdAdmin(member) {
+  const id = String(member?.membershipId || '').trim().toUpperCase();
+  return Boolean(id) && ADMIN_MEMBER_IDS.includes(id);
+}
+
+// Does this account belong in the Authority Zone at all? The admin allowlist and
+// President / Secretary qualify, and every other executive designation qualifies
+// too (they keep their module access even though they are not admins). Used to
+// gate the dashboard route and its navbar entry so an executive without the
+// ADMIN role is still admitted.
 export function isAuthorityUser(user) {
   if (!user) return false;
   if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') return true;
+  if (isMemberIdAdmin(user)) return true;
   return EXEC_GROUP.includes(String(user.designation || '').trim());
 }
 
-// The role a member effectively presents. A President / Secretary is ADMIN by
-// virtue of the designation, and the authorised Executive Committee Member is
-// reported by the server as role === 'ADMIN'. Keeps the members table honest even
-// if it is rendered from a payload that predates the auto-grant.
+// The role a member effectively presents. ADMIN is reported only for the
+// membership-ID allowlist and President / Secretary; the server also computes
+// this and sends it as member.role, but recomputing here keeps the table honest
+// even for a payload that predates the server-side change.
 export function effectiveRole(member) {
   if (!member) return 'MEMBER';
-  if (member.role && member.role !== 'MEMBER') return member.role;
-  if (member.status === 'APPROVED' && isDesignationAdmin(member.designation)) return 'ADMIN';
+  if (member.role === 'SUPER_ADMIN') return 'SUPER_ADMIN';
+  if (member.role === 'ADMIN') return 'ADMIN';
+  if (member.status === 'APPROVED' && (isDesignationAdmin(member.designation) || isMemberIdAdmin(member))) {
+    return 'ADMIN';
+  }
   return 'MEMBER';
 }
 

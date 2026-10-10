@@ -211,8 +211,8 @@ exports.login = async (req, res) => {
       });
     }
 
-    // An Executive Committee designation (President, Secretary, ...) grants
-    // admin access automatically, so the session carries the right role
+    // Admin access is derived automatically from the membership ID allowlist or
+    // a President / Secretary designation, so the session carries the right role
     // without anyone having to run set-role by hand.
     await syncDesignationRole(user);
 
@@ -357,9 +357,9 @@ exports.adminLogin = async (req, res) => {
         .json({ message: 'This account is pending approval and cannot access the Authority Zone' });
     }
 
-    // An officer who registered through the public form and was later assigned a
-    // designation gets the matching role here, so the session is authorised
-    // without anyone having to run set-role by hand.
+    // An officer who registered through the public form and is on the admin
+    // allowlist (or was assigned President / Secretary) gets the matching role
+    // here, so the session is authorised without anyone running set-role.
     await syncDesignationRole(user);
 
     const isAuthority =

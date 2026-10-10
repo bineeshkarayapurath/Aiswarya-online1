@@ -31,13 +31,12 @@ A full-stack membership + club administration platform for **Aiswarya Library & 
 │   │   ├── config/db.js     # Mongoose connection
 │   │   ├── config/constants.js  # server twin of branding, roles, permissions
 │   │   ├── controllers/     # auth, admin, member, accounts, catalog, etc.
-│   │   ├── middleware/      # auth, multer uploads
-│   │   ├── models/          # Mongoose schemas
+│   │   ├── middleware/      # auth, rate limiting, validation, multer uploads
+│   │   ├── models/          # Mongoose schemas (encrypted sensitive fields)
 │   │   ├── routes/index.js  # full API surface
 │   │   ├── services/        # role sync, membership IDs, PDF generation, storage utilities
-│   │   └── utils/           # storage/publicUrl, imgbb
-│   └── server.js            # entry point (express app + static /uploads)
-└── scripts/                 # logo / data fix utilities
+│   │   └── utils/           # storage/publicUrl, imgbb, fieldCrypto
+│   └── server.js            # entry point (express app + helmet + static /uploads)
 ```
 
 ## Key Concepts
@@ -46,9 +45,14 @@ A full-stack membership + club administration platform for **Aiswarya Library & 
   with photo + personal details and choose a login password, then an executive
   approves and a membership ID (`ALC-001`, …) and PDFs (application + digital ID card) are
   generated automatically.
-- **Roles** — `MEMBER`, `ADMIN`, `SUPER_ADMIN`. `ADMIN` gets full dashboard access.
+- **Roles** — `MEMBER`, `ADMIN`, `SUPER_ADMIN`. `ADMIN` (full dashboard access) is granted
+  strictly to the membership IDs in `ADMIN_MEMBER_IDS` (`ALC-001`/`ALC-002`/`ALC-003`) and to the
+  President / Secretary designations; no other officer or member is an admin.
 - **Designations** — Executive Committee designations (`President`, `Secretary`, …) gate which
-  Authority Dashboard modules an officer can open (see `MODULE_PERMISSIONS`).
+  Authority Dashboard modules an officer can open (see `MODULE_PERMISSIONS`). Designations alone
+  do not grant the ADMIN role.
+- **Field encryption** — `address`, `email`, `occupation` and `education` are encrypted at rest
+  (AES-256-CBC, `server/src/utils/fieldCrypto.js`) and decrypted transparently for admins.
 - **Sub-committees** — Vanitha Vedi, Bala Vedi, Yuvatha wings with their own rosters.
 - **White-labeling** — All branding/feature toggles live in `client/src/config/clubConfig.js` and
   mirror server `config/constants.js` (`CLUB` colors + tagline + qrType).

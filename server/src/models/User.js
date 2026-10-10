@@ -1,8 +1,25 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const config = require('../config/constants');
+const { encryptField, decryptField } = require('../utils/fieldCrypto');
 
-const UserSchema = new mongoose.Schema({
+// A String field stored AES-256-CBC encrypted at rest and decrypted on read.
+// The set/get pair is what keeps controllers untouched: assigning a plaintext
+// value encrypts it on the way to MongoDB, and reading the property (or a
+// toObject()/toJSON() with getters enabled, set on the schema below) returns
+// plaintext again. See utils/fieldCrypto.js for the format and why re-saving is
+// safe (the setter no-ops on an already-encrypted value).
+function encryptedString(options = {}) {
+  return {
+    ...options,
+    type: String,
+    set: encryptField,
+    get: decryptField,
+  };
+}
+
+const UserSchema = new mongoose.Schema(
+  {
   fullName: { type: String, required: true },
   // The phone number IS the username: it is what a member types on the login
   // screen and what /auth/login and /auth/set-password look the account up by.
@@ -29,14 +46,17 @@ const UserSchema = new mongoose.Schema({
   // password-age / forced-rotation rules.
   passwordUpdatedAt: { type: Date, default: null },
 
-  email: { type: String, default: '' },
+  // Encrypted at rest (field-level AES-256-CBC).
+  email: encryptedString({ default: '' }),
   membershipId: { type: String, index: { unique: true, sparse: true } },
   registrationNo: { type: String, default: '12 BTY 6652' },
   dob: { type: Date, required: true },
   age: { type: Number },
-  address: { type: String, required: true },
-  occupation: { type: String },
-  education: { type: String },
+  // Encrypted at rest. Required on the raw (ciphertext) value, which is always
+  // non-empty once the setter has run, so validation is unaffected.
+  address: encryptedString({ required: true }),
+  occupation: encryptedString(),
+  education: encryptedString(),
   photoUrl: { type: String },
 
   recommender: {
@@ -58,11 +78,11 @@ const UserSchema = new mongoose.Schema({
     default: 'MEMBER',
   },
 
-  // Provenance of `role`. 'manual' = an admin explicitly assigned it via
-  // set-role (never auto-revoked). 'designation' = derived automatically from
-  // the Executive Committee designation, so losing the designation demotes the
-  // account back to MEMBER. Defaults to 'manual' so pre-existing accounts keep
-  // whatever an admin gave them.
+  // Provenance of `role`. 'manual' = a role set directly (never auto-revoked).
+  // 'designation' = auto-derived from the admin rule (an allowlisted membership
+  // ID or a President / Secretary designation), so losing that qualification
+  // demotes the account back to MEMBER. Defaults to 'manual' so pre-existing
+  // accounts keep their role until the next re-sync.
   roleSource: {
     type: String,
     enum: ['manual', 'designation'],
@@ -111,7 +131,16 @@ const UserSchema = new mongoose.Schema({
   rejectionReason: { type: String },
 
   createdAt: { type: Date, default: Date.now },
-});
+  },
+  {
+    // Apply field getters (decryption) whenever a document is serialised, so
+    // toObject()/JSON responses always carry plaintext. Reading a property
+    // directly (doc.address) applies getters regardless; this covers the object
+    // and JSON forms that controllers spread into responses.
+    toObject: { getters: true },
+    toJSON: { getters: true },
+  }
+);
 
 // Hash the password on the way in. Runs only when `password` was actually
 // modified, so re-saving a user (an approval, a designation change) never

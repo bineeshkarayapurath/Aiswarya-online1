@@ -65,6 +65,13 @@ module.exports = {
   MONGO_URI:
     process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/aiswarya_library',
   JWT_SECRET: process.env.JWT_SECRET || 'dev-secret-change-me',
+  // AES-256-CBC key material for field-level encryption at rest (address, email,
+  // occupation, education). Falls back to JWT_SECRET so local development works
+  // without extra setup, but production MUST set a dedicated, stable value: change
+  // it after data has been written and that data can no longer be decrypted. See
+  // server/src/utils/fieldCrypto.js.
+  FIELD_ENCRYPTION_KEY:
+    process.env.FIELD_ENCRYPTION_KEY || process.env.JWT_SECRET || 'dev-secret-change-me',
   SUPER_ADMIN_PHONES: (process.env.SUPER_ADMIN_PHONES || '')
     .split(',')
     .map((p) => p.trim())
@@ -178,12 +185,18 @@ module.exports = {
     'Joint Secretary',
     'Executive Committee Member',
   ],
-  // Designations that carry top-level ADMIN authority on their own. The first
-  // approved holder of EXEC_ADMIN_DESIGNATION additionally carries it.
+  // Designations that carry top-level ADMIN authority on their own.
   ADMIN_DESIGNATIONS: ['President', 'Secretary'],
-  // The designation whose first-approved holder becomes the authorized
-  // Executive Committee admin (see roleService.authorizedExecId).
-  EXEC_ADMIN_DESIGNATION: 'Executive Committee Member',
+  // Members who carry top-level ADMIN authority by membership ID, regardless of
+  // any committee designation. This is the authoritative admin allowlist:
+  // together with ADMIN_DESIGNATIONS it is the ONLY way an account becomes an
+  // admin. Everyone else (Vice President, Joint Secretary, other Executive
+  // Committee Members, general members) keeps their module access but never the
+  // ADMIN role or badge. Override with a comma-separated ADMIN_MEMBER_IDS.
+  ADMIN_MEMBER_IDS: (process.env.ADMIN_MEMBER_IDS || 'ALC-001,ALC-002,ALC-003')
+    .split(',')
+    .map((s) => s.trim().toUpperCase())
+    .filter(Boolean),
   // Which Authority Dashboard modules each designation may open. An authority
   // account with NO designation keeps full access (legacy default), so the
   // frontend treats it as "all modules" and the API gate as wide open.
