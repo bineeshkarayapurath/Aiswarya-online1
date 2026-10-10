@@ -112,12 +112,21 @@ export default function Navbar() {
             icon or distorts. */}
         {CLUB.logo2 && !councilLogoBroken && (
           <div className="flex min-w-0 items-center justify-center">
-            <img
-              src={CLUB.logo2}
-              alt="State Library Council"
-              onError={() => setCouncilLogoBroken(true)}
-              className="h-10 w-10 shrink-0 object-contain sm:h-12 sm:w-12"
-            />
+            <a
+              href="https://kslc.in/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded transition hover:opacity-80"
+              aria-label="State Library Council"
+              title="State Library Council"
+            >
+              <img
+                src={CLUB.logo2}
+                alt="State Library Council"
+                onError={() => setCouncilLogoBroken(true)}
+                className="h-10 w-10 shrink-0 object-contain sm:h-12 sm:w-12"
+              />
+            </a>
           </div>
         )}
 
