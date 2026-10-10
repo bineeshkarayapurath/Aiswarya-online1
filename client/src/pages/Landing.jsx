@@ -202,7 +202,11 @@ export default function Landing() {
                     onError={(ev) => {
                       ev.currentTarget.style.display = 'none';
                     }}
-                    className="h-44 w-full shrink-0 rounded-xl object-cover sm:h-auto sm:w-36"
+                    // Mobile: no fixed height — let the card grow to the poster's
+                    // own ratio and show the whole image (object-contain) instead
+                    // of cropping it into a fixed h-44 band. Desktop keeps the
+                    // compact side thumbnail (w-36, cover).
+                    className="h-auto w-full shrink-0 rounded-xl object-contain sm:h-auto sm:w-36 sm:object-cover"
                   />
                 ) : (
                   <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-emerald-900 text-gold-300 shadow-lg">
