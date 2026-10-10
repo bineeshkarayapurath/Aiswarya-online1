@@ -58,6 +58,7 @@ router.get('/public/gallery', gallery.listPublicAlbums);
 // and the wishlist is a shared noticeboard members consult before asking for a
 // book that is already on it. optionalAuth lets a signed-in caller additionally
 // receive their own vote/eligibility without a second request.
+router.get('/public/book-requests/config', bookRequests.getConfig);
 router.get('/public/book-requests', bookRequests.listPublic);
 router.get('/public/polls', optionalAuth, polls.listPublic);
 router.get('/public/polls/:idOrSlug', optionalAuth, polls.getPublic);
@@ -309,6 +310,11 @@ router.put('/admin/upcoming-events/:id', requireAuth, requireOfficerOrAdmin(EXEC
 router.delete('/admin/upcoming-events/:id', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), upcomingEvents.remove);
 
 // Book Festival wishlist review (executive officers).
+// The config routes are declared before the ':id' routes so '/config' and
+// '/export' are not swallowed by the parameterised handler.
+router.get('/admin/book-requests/config', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), bookRequests.getConfig);
+router.put('/admin/book-requests/config', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), bookRequests.updateConfig);
+router.get('/admin/book-requests/export', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), bookRequests.exportCsv);
 router.get('/admin/book-requests', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), bookRequests.listAll);
 router.put('/admin/book-requests/:id', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), bookRequests.updateStatus);
 router.delete('/admin/book-requests/:id', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), bookRequests.remove);

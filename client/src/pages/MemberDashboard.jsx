@@ -269,7 +269,7 @@ export default function MemberDashboard() {
       )}
       {featureEnabled('enableBookRequests') && (
         <div className="mt-10 border-t border-slate-200 pt-10">
-          <BookFestivalRequests heading="Book Festival — Book Requests" />
+          <BookFestivalRequests />
         </div>
       )}
       {isCommitteeOfficer && (

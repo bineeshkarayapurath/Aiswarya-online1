@@ -20,6 +20,9 @@ import {
 //   - the member dashboard (an approved member can also add and withdraw).
 // A logged-out visitor sees the same shared list plus a prompt to sign in before
 // submitting, because a request has to be attributable to a member.
+//
+// The form itself is not fixed: its title, description and input fields are read
+// from the admin-configured /public/book-requests/config and rendered dynamically.
 const STATUS_META = {
   Pending: { label: 'Pending', cls: 'bg-amber-100 text-amber-700', icon: FaHourglassHalf },
   Approved: { label: 'Approved', cls: 'bg-sky-100 text-sky-700', icon: FaCheckCircle },
@@ -43,17 +46,32 @@ function fmtDate(d) {
   return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-export default function BookFestivalRequests({ heading = 'Book Festival — Book Requests' }) {
+// Everything after the headline value, as a single subtitle line.
+function requestSubtitle(r) {
+  return (r.answers || [])
+    .slice(1)
+    .map((a) => a.value)
+    .filter(Boolean)
+    .join(' · ');
+}
+
+export default function BookFestivalRequests({ heading }) {
   const { user } = useAuth();
   const isMember = Boolean(user && user.status === 'APPROVED');
 
+  const [config, setConfig] = useState(null);
   const [all, setAll] = useState([]);
   const [mine, setMine] = useState([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
-  const [form, setForm] = useState({ bookTitle: '', author: '', language: '', notes: '' });
-  const [saving, setSaving] = useState(false);
+  const [values, setValues] = useState({});
+  const [submitting, setSubmitting] = useState(false);
   const [withdrawing, setWithdrawing] = useState(null);
+
+  const loadConfig = useCallback(async () => {
+    const res = await api.get('/public/book-requests/config');
+    setConfig(res.data.config || null);
+  }, []);
 
   const loadAll = useCallback(async (q = '') => {
     const res = await api.get('/public/book-requests', { params: q ? { q } : {} });
@@ -68,10 +86,10 @@ export default function BookFestivalRequests({ heading = 'Book Festival — Book
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([loadAll(), loadMine()])
+    Promise.all([loadConfig(), loadAll(), loadMine()])
       .catch((e) => toast.error(e.response?.data?.message || 'Failed to load book requests'))
       .finally(() => setLoading(false));
-  }, [loadAll, loadMine]);
+  }, [loadConfig, loadAll, loadMine]);
 
   // Server-side search, debounced so typing does not fire a request per keystroke.
   useEffect(() => {
@@ -81,29 +99,30 @@ export default function BookFestivalRequests({ heading = 'Book Festival — Book
     return () => clearTimeout(id);
   }, [query, loadAll]);
 
+  const fields = config?.fields || [];
+
   const submit = async (e) => {
     e.preventDefault();
-    if (!form.bookTitle.trim()) return toast.error('Please enter the book title');
-    setSaving(true);
+    for (const f of fields) {
+      if (f.required && !String(values[f.id] || '').trim()) {
+        return toast.error(`Please fill in "${f.label}"`);
+      }
+    }
+    setSubmitting(true);
     try {
-      await api.post('/member/book-requests', {
-        bookTitle: form.bookTitle.trim(),
-        author: form.author.trim(),
-        language: form.language.trim(),
-        notes: form.notes.trim(),
-      });
+      await api.post('/member/book-requests', { values });
       toast.success('Request submitted — thank you!');
-      setForm({ bookTitle: '', author: '', language: '', notes: '' });
+      setValues({});
       await Promise.all([loadAll(query.trim()), loadMine()]);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Could not submit request');
     } finally {
-      setSaving(false);
+      setSubmitting(false);
     }
   };
 
   const withdraw = async (req) => {
-    if (!window.confirm(`Withdraw your request for "${req.bookTitle}"?`)) return;
+    if (!window.confirm(`Withdraw your request for "${req.title}"?`)) return;
     setWithdrawing(req.id);
     try {
       await api.delete(`/member/book-requests/${req.id}`);
@@ -120,11 +139,11 @@ export default function BookFestivalRequests({ heading = 'Book Festival — Book
     <div className="space-y-6">
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="flex items-center gap-2 text-lg font-extrabold text-emerald-900">
-          <FaBookOpen className="text-gold" /> {heading}
+          <FaBookOpen className="text-gold" /> {heading || config?.formTitle || 'Book Festival — Book Requests'}
         </h2>
         <p className="mt-1 text-sm text-slate-500">
-          Suggest a book for the club to buy for the Book Festival. Check the list below first — if
-          someone has already asked for the same title, there is no need to add it again.
+          {config?.formDescription ||
+            'Suggest a book for the club to buy for the Book Festival. Check the list below first — if someone has already asked for the same title, there is no need to add it again.'}
         </p>
       </div>
 
@@ -136,47 +155,43 @@ export default function BookFestivalRequests({ heading = 'Book Festival — Book
           <h3 className="flex items-center gap-2 text-sm font-extrabold text-emerald-900">
             <FaPlus className="text-gold" /> Request a Book
           </h3>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <label className="label">Book Title *</label>
-              <input
-                className="input"
-                placeholder="e.g. Randamoozham"
-                value={form.bookTitle}
-                onChange={(e) => setForm((f) => ({ ...f, bookTitle: e.target.value }))}
-              />
+          {fields.length === 0 ? (
+            <p className="text-sm text-slate-500">The request form is being set up. Please check back soon.</p>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {fields.map((f) => (
+                <div key={f.id} className={f.type === 'textarea' ? 'sm:col-span-2' : ''}>
+                  <label className="label">
+                    {f.label}
+                    {f.required ? ' *' : ' (optional)'}
+                  </label>
+                  {f.type === 'textarea' ? (
+                    <textarea
+                      className="input min-h-[70px]"
+                      placeholder={f.placeholder}
+                      value={values[f.id] || ''}
+                      onChange={(e) => setValues((v) => ({ ...v, [f.id]: e.target.value }))}
+                    />
+                  ) : (
+                    <input
+                      className="input"
+                      placeholder={f.placeholder}
+                      value={values[f.id] || ''}
+                      onChange={(e) => setValues((v) => ({ ...v, [f.id]: e.target.value }))}
+                    />
+                  )}
+                </div>
+              ))}
             </div>
-            <div>
-              <label className="label">Author (optional)</label>
-              <input
-                className="input"
-                placeholder="e.g. M. T. Vasudevan Nair"
-                value={form.author}
-                onChange={(e) => setForm((f) => ({ ...f, author: e.target.value }))}
-              />
-            </div>
-            <div>
-              <label className="label">Language (optional)</label>
-              <input
-                className="input"
-                placeholder="e.g. Malayalam"
-                value={form.language}
-                onChange={(e) => setForm((f) => ({ ...f, language: e.target.value }))}
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="label">Notes (optional)</label>
-              <textarea
-                className="input min-h-[70px]"
-                placeholder="Anything that helps the committee — publisher, edition, why it would be valuable..."
-                value={form.notes}
-                onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-              />
-            </div>
-          </div>
+          )}
           <div className="flex justify-end">
-            <button type="submit" disabled={saving} className="btn-primary !py-2.5 text-sm disabled:opacity-60">
-              <FaPlus className="mr-1.5 inline" /> {saving ? 'Submitting...' : 'Submit Request'}
+            <button
+              type="submit"
+              disabled={submitting || fields.length === 0}
+              className="btn-primary !py-2.5 text-sm disabled:opacity-60"
+            >
+              <FaPlus className="mr-1.5 inline" />{' '}
+              {submitting ? 'Submitting...' : config?.submitLabel || 'Submit Request'}
             </button>
           </div>
         </form>
@@ -213,8 +228,10 @@ export default function BookFestivalRequests({ heading = 'Book Festival — Book
                 className="flex flex-wrap items-center gap-2 px-5 py-3"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-bold text-slate-700">{r.bookTitle}</p>
-                  {r.author && <p className="truncate text-xs text-slate-500">{r.author}</p>}
+                  <p className="truncate text-sm font-bold text-slate-700">{r.title}</p>
+                  {requestSubtitle(r) && (
+                    <p className="truncate text-xs text-slate-500">{requestSubtitle(r)}</p>
+                  )}
                 </div>
                 <StatusPill status={r.status} />
                 {r.status === 'Pending' && (
@@ -239,7 +256,7 @@ export default function BookFestivalRequests({ heading = 'Book Festival — Book
             <FaSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400" />
             <input
               className="input !py-2 pl-8 text-sm"
-              placeholder="Search a title or author..."
+              placeholder="Search a title, author or member..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
@@ -266,10 +283,8 @@ export default function BookFestivalRequests({ heading = 'Book Festival — Book
                 className="flex flex-wrap items-center gap-2 px-5 py-3 hover:bg-slate-50/60"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-bold text-slate-700">{r.bookTitle}</p>
-                  <p className="truncate text-xs text-slate-500">
-                    {[r.author, r.language].filter(Boolean).join(' · ')}
-                  </p>
+                  <p className="truncate text-sm font-bold text-slate-700">{r.title}</p>
+                  <p className="truncate text-xs text-slate-500">{requestSubtitle(r)}</p>
                 </div>
                 <div className="min-w-0 text-right">
                   <p className="truncate text-xs font-semibold text-slate-600">
