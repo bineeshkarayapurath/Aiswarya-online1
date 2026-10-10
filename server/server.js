@@ -11,6 +11,14 @@ const apiRoutes = require('./src/routes/index');
 
 const app = express();
 
+// The commit this process is running, when the host exposes it (Render sets
+// RENDER_GIT_COMMIT). Reported by /api/health so a client hitting a 404 can tell
+// in one request whether the backend is simply an older deployment that predates
+// a newly-added route.
+const DEPLOY_COMMIT =
+  process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || process.env.COMMIT_SHA || null;
+const STARTED_AT = new Date().toISOString();
+
 // Refuse to start a production server that is missing its security
 // configuration. Every one of these is fail-closed at request time as well;
 // this turns a silent lockout (or, worse, a guessed default) into a loud
@@ -174,7 +182,13 @@ app.use('/api', apiRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', club: config.CLUB.name, regNo: config.CLUB.regNo });
+  res.json({
+    status: 'ok',
+    club: config.CLUB.name,
+    regNo: config.CLUB.regNo,
+    commit: DEPLOY_COMMIT,
+    startedAt: STARTED_AT,
+  });
 });
 
 // Any unmatched /api/* route answers with JSON, never Express's HTML
@@ -184,8 +198,18 @@ app.get('/api/health', (req, res) => {
 // "Save failed" with no hint of the cause. This runs after the API router and
 // the health check, so only genuinely-unmatched API paths reach it.
 app.use('/api', (req, res) => {
+  console.warn(
+    `[API 404] ${req.method} ${req.originalUrl} - no route matched; ` +
+      `running commit ${DEPLOY_COMMIT || 'unknown'}, started ${STARTED_AT}`
+  );
   res.status(404).json({
     message: `Endpoint not found: ${req.method} ${req.originalUrl}`,
+    runningCommit: DEPLOY_COMMIT,
+    hint:
+      'If this route exists in the code, the running server is an older ' +
+      'deployment - redeploy it. If it exists but is still missing here, check ' +
+      'the frontend VITE_API_BASE_URL points at this API origin (exactly one ' +
+      'trailing /api, no double slashes).',
   });
 });
 
@@ -287,6 +311,16 @@ connectDB().then(async () => {
     console.log(`[CORS] Allowed origins: ${config.CLIENT_URLS.join(', ')}`);
     console.log(`[STORAGE] ${config.STORAGE_DIR}`);
     console.log(`[ROLES] ADMIN allowlist: ${config.ADMIN_MEMBER_IDS.join(', ') || '(none)'} + ${config.ADMIN_DESIGNATIONS.join(', ')}`);
+    // Which build is live and where its two external integrations point. If a
+    // client reports a 404 for a route that exists in the code, this line (and
+    // GET /api/health) shows at a glance whether the running process is the
+    // commit that added it.
+    console.log(`[DEPLOY] commit ${DEPLOY_COMMIT || 'unknown'} | started ${STARTED_AT}`);
+    console.log(
+      `[ROUTES] upcoming-events mounted at '/api/admin/upcoming-events' (GET/POST) and ` +
+        `'/api/admin/upcoming-events/:id' (PUT/DELETE); image uploads via POST /api/upload ` +
+        `-> ${config.IMG_BB_API_KEY ? 'ImgBB CDN' : 'local storage'}`
+    );
     if (!process.env.FIELD_ENCRYPTION_KEY) {
       console.warn(
         '[CRYPTO] FIELD_ENCRYPTION_KEY is not set, so field-level encryption ' +

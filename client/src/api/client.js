@@ -6,7 +6,16 @@ import axios from 'axios';
 // In local development it falls back to '/api', which Vite proxies to the
 // backend (see vite.config.js). The origin (no trailing /api) is used to
 // resolve uploaded images hosted at /uploads/... on the backend.
-export const API_ORIGIN = String(import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/api\/?$/, '');
+//
+// Normalisation matters: a stray trailing slash ("https://x.com/api/" or
+// "https://x.com/") would otherwise leave a trailing separator, and the request
+// URL below ("origin + /api") would become "...//api/..." - a double slash that
+// Express does NOT match against its "/api" mount, producing a confusing 404 on
+// every endpoint. Strip trailing slashes first, then a single trailing "/api".
+export const API_ORIGIN = String(import.meta.env.VITE_API_BASE_URL || '/api')
+  .trim()
+  .replace(/\/+$/, '')
+  .replace(/\/api$/i, '');
 
 // Resolve any stored media path into a URL the browser can load:
 //   - absolute http(s) / protocol-relative URLs and data/base64/blob URIs pass
