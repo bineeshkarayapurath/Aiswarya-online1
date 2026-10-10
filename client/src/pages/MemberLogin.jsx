@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { FaUserLock, FaIdCardAlt, FaMobileAlt, FaLock, FaCalendarAlt, FaArrowLeft } from 'react-icons/fa';
@@ -18,6 +18,13 @@ import PasswordInput from '../components/PasswordInput';
 export default function MemberLogin() {
   const navigate = useNavigate();
   const { user, setAuth } = useAuth();
+  // Where to send the member after a successful sign-in. A shared poll link
+  // (/polls/xyz) bounces through here with ?redirect=/polls/xyz so the member
+  // lands straight back on that poll and can vote. Only a same-site path is
+  // honoured, so an attacker cannot craft a login link that forwards off-site.
+  const [searchParams] = useSearchParams();
+  const rawRedirect = searchParams.get('redirect') || '';
+  const redirect = rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') ? rawRedirect : '';
   const [identifier, setIdentifier] = useState('');
   const [isMemberId, setIsMemberId] = useState(false);
   const [password, setPassword] = useState('');
@@ -37,11 +44,12 @@ export default function MemberLogin() {
     return (
       <Navigate
         to={
-          isAuthorityUser(user)
+          redirect ||
+          (isAuthorityUser(user)
             ? '/admin/dashboard'
             : user.status === 'APPROVED'
               ? '/member/dashboard'
-              : '/pending'
+              : '/pending')
         }
         replace
       />
@@ -81,7 +89,7 @@ export default function MemberLogin() {
 
       setAuth(res.data.token, res.data.user);
       toast.success(`Welcome back, ${res.data.user.fullName}!`);
-      navigate(isAuthorityUser(res.data.user) ? '/admin/dashboard' : '/member/dashboard');
+      navigate(redirect || (isAuthorityUser(res.data.user) ? '/admin/dashboard' : '/member/dashboard'));
     } catch (e) {
       const msg = e.response?.data?.message;
       if (e.response?.data?.pending) {

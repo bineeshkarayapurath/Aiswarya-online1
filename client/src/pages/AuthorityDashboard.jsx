@@ -25,6 +25,8 @@ import {
   HeartPulse,
   Music,
   CalendarDays,
+  BookMarked,
+  Vote,
 } from 'lucide-react';
 import { StatusBadge } from '../components/StatusBadge';
 import Spinner from '../components/Spinner';
@@ -40,6 +42,8 @@ import ProgramApprovals from '../components/ProgramApprovals';
 import EventProgramManager from '../components/EventProgramManager';
 import EventRegistrationsList from '../components/EventRegistrationsList';
 import UpcomingEventsPanel from '../components/UpcomingEventsPanel';
+import BookRequestsPanel from '../components/BookRequestsPanel';
+import PollsPanel from '../components/PollsPanel';
 import AssetsPanel from '../components/AssetsPanel';
 import { canAccessModule, effectiveRole, roleLabel } from '../lib/permissions';
 import { moduleEnabled } from '../lib/club';
@@ -115,6 +119,22 @@ const MODULES = [
     icon: CalendarDays,
     chip: 'bg-amber-100 text-amber-800',
     card: 'hover:border-amber-600/40',
+  },
+  {
+    key: 'bookRequests',
+    titleKey: 'admin.modules.bookRequests.title',
+    descKey: 'admin.modules.bookRequests.desc',
+    icon: BookMarked,
+    chip: 'bg-teal-100 text-teal-800',
+    card: 'hover:border-teal-600/40',
+  },
+  {
+    key: 'polls',
+    titleKey: 'admin.modules.polls.title',
+    descKey: 'admin.modules.polls.desc',
+    icon: Vote,
+    chip: 'bg-indigo-100 text-indigo-800',
+    card: 'hover:border-indigo-600/40',
   },
   {
     key: 'accounts',
@@ -257,6 +277,8 @@ export default function AuthorityDashboard() {
             {active.key === 'programs' && <ProgramsPanel />}
             {active.key === 'programRegistration' && <EventProgramModule />}
             {active.key === 'upcomingEvents' && <UpcomingEventsPanel />}
+            {active.key === 'bookRequests' && <BookRequestsPanel />}
+            {active.key === 'polls' && <PollsPanel />}
             {active.key === 'accounts' && <AccountsPanel />}
             {active.key === 'vouchers' && <ReceiptsAndVouchers />}
             {active.key === 'communityService' && <CommunityServicePanel />}
@@ -265,7 +287,7 @@ export default function AuthorityDashboard() {
             {active.key === 'issues' && <BorrowingPanel />}
             {active.key === 'committee' && <ExecutiveCommittee />}
             {active.key === 'assets' && <AssetsPanel />}
-            {!['approvals', 'members', 'committee', 'settings', 'vanitha', 'bala', 'yuvatha', 'programs', 'programRegistration', 'upcomingEvents', 'accounts', 'vouchers', 'communityService', 'gallery', 'catalog', 'issues', 'assets'].includes(active.key) && (
+            {!['approvals', 'members', 'committee', 'settings', 'vanitha', 'bala', 'yuvatha', 'programs', 'programRegistration', 'upcomingEvents', 'bookRequests', 'polls', 'accounts', 'vouchers', 'communityService', 'gallery', 'catalog', 'issues', 'assets'].includes(active.key) && (
               <PlaceholderPanel module={active.data} />
             )}
           </ModuleModal>

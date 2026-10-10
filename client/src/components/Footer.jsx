@@ -52,6 +52,12 @@ export default function Footer() {
             {featureEnabled('enablePrograms') && (
               <li><a href="/#events" className="hover:text-gold">{t('footer.upcomingEvents')}</a></li>
             )}
+            {featureEnabled('enableBookRequests') && (
+              <li><a href="/book-festival" className="hover:text-gold">{t('footer.bookFestival')}</a></li>
+            )}
+            {featureEnabled('enablePolls') && (
+              <li><a href="/polls" className="hover:text-gold">{t('footer.polls')}</a></li>
+            )}
           </ul>
         </div>
 

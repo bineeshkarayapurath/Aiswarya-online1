@@ -27,6 +27,8 @@ const cs = require('../controllers/communityServiceController');
 const uploadCtrl = require('../controllers/uploadController');
 const events = require('../controllers/eventProgramController');
 const upcomingEvents = require('../controllers/upcomingEventController');
+const bookRequests = require('../controllers/bookRequestController');
+const polls = require('../controllers/pollController');
 
 const config = require('../config/constants');
 
@@ -50,6 +52,15 @@ router.get('/public/settings', settings.getSettings);
 // the signatures are not exposed to anonymous visitors.
 router.get('/settings/signatures', requireAuth, settings.getSignatures);
 router.get('/public/gallery', gallery.listPublicAlbums);
+
+// Book Festival book requests & polls. Both are readable by anyone: the club
+// shares a poll link into WhatsApp where many recipients are not signed in yet,
+// and the wishlist is a shared noticeboard members consult before asking for a
+// book that is already on it. optionalAuth lets a signed-in caller additionally
+// receive their own vote/eligibility without a second request.
+router.get('/public/book-requests', bookRequests.listPublic);
+router.get('/public/polls', optionalAuth, polls.listPublic);
+router.get('/public/polls/:idOrSlug', optionalAuth, polls.getPublic);
 
 // Generic image upload (multipart, field "photos"). Public by design so new
 // member registration can attach a photo before an account exists. Files are
@@ -297,9 +308,28 @@ router.post('/admin/upcoming-events', requireAuth, requireOfficerOrAdmin(EXEC_OF
 router.put('/admin/upcoming-events/:id', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), upcomingEvents.update);
 router.delete('/admin/upcoming-events/:id', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), upcomingEvents.remove);
 
+// Book Festival wishlist review (executive officers).
+router.get('/admin/book-requests', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), bookRequests.listAll);
+router.put('/admin/book-requests/:id', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), bookRequests.updateStatus);
+router.delete('/admin/book-requests/:id', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), bookRequests.remove);
+
+// Polls (executive officers): create, activate/deactivate, delete.
+router.get('/admin/polls', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), polls.listAll);
+router.post('/admin/polls', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), polls.create);
+router.put('/admin/polls/:id', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), polls.update);
+router.delete('/admin/polls/:id', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), polls.remove);
+
 // Member
 router.get('/member/profile', requireAuth, requireMember, member.myProfile);
 router.get('/member/document/:type', requireAuth, requireMember, member.serveFile);
+
+// Book Festival wishlist (approved members): submit, list own, withdraw own.
+router.get('/member/book-requests', requireAuth, requireMember, bookRequests.listMine);
+router.post('/member/book-requests', requireAuth, requireMember, bookRequests.create);
+router.delete('/member/book-requests/:id', requireAuth, requireMember, bookRequests.removeMine);
+
+// Poll voting (approved members). One vote per member per poll.
+router.post('/member/polls/:idOrSlug/vote', requireAuth, requireMember, polls.vote);
 
 
 

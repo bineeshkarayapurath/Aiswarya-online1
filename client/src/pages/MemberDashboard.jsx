@@ -11,6 +11,8 @@ import CommitteeManagementPanel from '../components/CommitteeManagementPanel';
 import MemberReceipts from '../components/MemberReceipts';
 import EventProgramRegistrations from '../components/EventProgramRegistrations';
 import BookAssistant from '../components/BookAssistant';
+import BookFestivalRequests from '../components/BookFestivalRequests';
+import Polls from '../components/Polls';
 import { featureEnabled, subcommitteeEnabled, CLUB } from '../lib/club';
 import { roleLabel } from '../lib/permissions';
 import {
@@ -259,6 +261,16 @@ export default function MemberDashboard() {
           <div className="mt-10">
             <EventProgramRegistrations member={m} />
           </div>
+      )}
+      {featureEnabled('enablePolls') && (
+        <div className="mt-10 border-t border-slate-200 pt-10">
+          <Polls />
+        </div>
+      )}
+      {featureEnabled('enableBookRequests') && (
+        <div className="mt-10 border-t border-slate-200 pt-10">
+          <BookFestivalRequests heading="Book Festival — Book Requests" />
+        </div>
       )}
       {isCommitteeOfficer && (
         <CommitteeManagementPanel />

@@ -209,6 +209,8 @@ module.exports = {
     programs: ['President', 'Vice President', 'Secretary', 'Joint Secretary', 'Executive Committee Member'],
     programRegistration: ['President', 'Vice President', 'Secretary', 'Joint Secretary', 'Executive Committee Member', 'Librarian'],
     upcomingEvents: ['President', 'Vice President', 'Secretary', 'Joint Secretary', 'Executive Committee Member'],
+    bookRequests: ['President', 'Vice President', 'Secretary', 'Joint Secretary', 'Executive Committee Member'],
+    polls: ['President', 'Vice President', 'Secretary', 'Joint Secretary', 'Executive Committee Member'],
     accounts: ['Treasurer'],
     vouchers: ['Treasurer'],
     communityService: ['President', 'Vice President', 'Secretary', 'Joint Secretary', 'Executive Committee Member'],

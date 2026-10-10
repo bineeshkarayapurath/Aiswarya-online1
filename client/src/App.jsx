@@ -3,6 +3,8 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import Landing from './pages/Landing';
 import Gallery from './pages/Gallery';
+import BookFestival from './pages/BookFestival';
+import Polls from './pages/Polls';
 import Register from './pages/Register';
 import PendingApproval from './pages/PendingApproval';
 import MemberLogin from './pages/MemberLogin';
@@ -43,6 +45,11 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/gallery" element={<Gallery />} />
+          <Route path="/book-festival" element={<BookFestival />} />
+          {/* Public poll page. /polls/:idOrSlug is the shareable deep link a
+              member opens from WhatsApp; it highlights that specific poll. */}
+          <Route path="/polls" element={<Polls />} />
+          <Route path="/polls/:idOrSlug" element={<Polls />} />
           <Route path="/register" element={<Register />} />
           {/* Dev aliases */}
           <Route path="/signup" element={<Register />} />

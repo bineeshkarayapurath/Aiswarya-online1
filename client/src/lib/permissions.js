@@ -34,6 +34,8 @@ export const MODULE_PERMISSIONS = {
   // designated on the Executive Committee list.
   programRegistration: [...EXEC_GROUP, 'Librarian'],
   upcomingEvents: EXEC_GROUP,
+  bookRequests: EXEC_GROUP,
+  polls: EXEC_GROUP,
   accounts: ['Treasurer'],
   vouchers: ['Treasurer'],
   communityService: EXEC_GROUP,
