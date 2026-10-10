@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const BookRequest = require('../models/BookRequest');
 const BookRequestConfig = require('../models/BookRequestConfig');
 
@@ -178,6 +179,9 @@ exports.create = async (req, res) => {
 // can be corrected without a trip to the committee.
 exports.removeMine = async (req, res) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(404).json({ message: 'Request not found' });
+    }
     const request = await BookRequest.findById(req.params.id);
     if (!request) return res.status(404).json({ message: 'Request not found' });
     if (String(request.requestedBy || '') !== String(req.user._id)) {
@@ -288,9 +292,18 @@ exports.exportCsv = async (req, res) => {
 
 exports.updateStatus = async (req, res) => {
   try {
-    const status = String(req.body.status || '').trim();
+    // Guard before touching status: if the ':id' slot ever receives a
+    // non-ObjectId (e.g. the literal "config" leaking through an outdated router
+    // that lacks the /config route), answer 404 rather than the misleading
+    // "Invalid status" that made a routing problem look like bad payload data.
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(404).json({ message: 'Request not found' });
+    }
+    const status = String((req.body && req.body.status) || '').trim();
     if (!STATUSES.includes(status)) {
-      return res.status(400).json({ message: 'Invalid status' });
+      return res.status(400).json({
+        message: `Invalid status. Expected one of: ${STATUSES.join(', ')}`,
+      });
     }
     const request = await BookRequest.findById(req.params.id);
     if (!request) return res.status(404).json({ message: 'Request not found' });
@@ -304,6 +317,9 @@ exports.updateStatus = async (req, res) => {
 
 exports.remove = async (req, res) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(404).json({ message: 'Request not found' });
+    }
     const request = await BookRequest.findById(req.params.id);
     if (!request) return res.status(404).json({ message: 'Request not found' });
     await request.deleteOne();

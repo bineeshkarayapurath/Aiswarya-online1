@@ -311,9 +311,11 @@ router.delete('/admin/upcoming-events/:id', requireAuth, requireOfficerOrAdmin(E
 
 // Book Festival wishlist review (executive officers).
 // The config routes are declared before the ':id' routes so '/config' and
-// '/export' are not swallowed by the parameterised handler.
+// '/export' are not swallowed by the parameterised handler. POST is accepted as
+// an alias for PUT so either verb saves the form.
 router.get('/admin/book-requests/config', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), bookRequests.getConfig);
 router.put('/admin/book-requests/config', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), bookRequests.updateConfig);
+router.post('/admin/book-requests/config', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), bookRequests.updateConfig);
 router.get('/admin/book-requests/export', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), bookRequests.exportCsv);
 router.get('/admin/book-requests', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), bookRequests.listAll);
 router.put('/admin/book-requests/:id', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), bookRequests.updateStatus);
