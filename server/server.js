@@ -263,7 +263,7 @@ if (fs.existsSync(path.join(clientDist, 'index.html'))) {
       'root so client/dist exists at startup, or point CLIENT_DIST_DIR at the ' +
       'directory your build actually writes.'
   );
-  app.get('*', (req, res) => {
+  app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) return next();
     res
       .status(503)
