@@ -38,6 +38,24 @@ function fmtDate(d) {
   return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+// Turn any failed request into a readable message AND log the full server
+// response to the browser console. Previously each catch showed a bare fallback
+// ("Save failed") whether the server said why or not, so a real cause - a 400
+// validation message, a 404 from a stale deployment, or a network/CORS failure -
+// was invisible.
+function describeError(e, fallback) {
+  const data = e.response?.data;
+  console.error(
+    '[UpcomingEvents] request failed:',
+    e.response?.status || '(no response)',
+    data || e.message
+  );
+  if (data?.message) return data.message;
+  if (data?.detail) return data.detail;
+  if (e.response) return `${fallback} (HTTP ${e.response.status})`;
+  return `${fallback}: network error — could not reach the server`;
+}
+
 export default function UpcomingEventsPanel() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -51,7 +69,7 @@ export default function UpcomingEventsPanel() {
       const res = await api.get('/admin/upcoming-events');
       setEvents(res.data.events || []);
     } catch (e) {
-      toast.error(e.response?.data?.message || 'Failed to load events');
+      toast.error(describeError(e, 'Failed to load events'));
     } finally {
       setLoading(false);
     }
@@ -74,7 +92,7 @@ export default function UpcomingEventsPanel() {
       refreshHome();
       load();
     } catch (e) {
-      toast.error(e.response?.data?.message || 'Failed to delete event');
+      toast.error(describeError(e, 'Failed to delete event'));
     } finally {
       setDeleting(null);
     }
@@ -88,7 +106,7 @@ export default function UpcomingEventsPanel() {
       refreshHome();
       load();
     } catch (e) {
-      toast.error(e.response?.data?.message || 'Failed to update event');
+      toast.error(describeError(e, 'Failed to update event'));
     } finally {
       setToggling(null);
     }
@@ -257,6 +275,11 @@ function EventFormModal({ event, onClose, onSaved }) {
   const pickPoster = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > 16 * 1024 * 1024) {
+      toast.error('Poster must be under 16 MB');
+      e.target.value = '';
+      return;
+    }
     setUploading(true);
     try {
       const [url] = await uploadImages([file]);
@@ -264,10 +287,17 @@ function EventFormModal({ event, onClose, onSaved }) {
         setForm((f) => ({ ...f, posterUrl: url }));
         toast.success('Poster uploaded');
       } else {
-        toast.error('Poster upload failed');
+        toast.error('Poster upload failed — you can still save without an image');
       }
-    } catch {
-      toast.error('Poster upload failed');
+    } catch (err) {
+      console.error(
+        '[UpcomingEvents] poster upload failed:',
+        err.response?.status || '(no response)',
+        err.response?.data || err.message
+      );
+      toast.error(
+        err.response?.data?.message || 'Poster upload failed — you can still save without an image'
+      );
     } finally {
       setUploading(false);
       e.target.value = '';
@@ -275,6 +305,7 @@ function EventFormModal({ event, onClose, onSaved }) {
   };
 
   const save = async () => {
+    if (uploading) return toast.error('Please wait for the poster to finish uploading');
     if (!form.title.trim()) return toast.error('Event title is required');
     if (!form.date) return toast.error('Event date is required');
     setSaving(true);
@@ -289,7 +320,7 @@ function EventFormModal({ event, onClose, onSaved }) {
       }
       onSaved();
     } catch (e) {
-      toast.error(e.response?.data?.message || 'Save failed');
+      toast.error(describeError(e, 'Save failed'));
     } finally {
       setSaving(false);
     }

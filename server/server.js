@@ -177,6 +177,18 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', club: config.CLUB.name, regNo: config.CLUB.regNo });
 });
 
+// Any unmatched /api/* route answers with JSON, never Express's HTML
+// "Cannot POST /api/..." page. Without this, a client (or a deployment that is
+// missing a newly-added route) receives an HTML body, so
+// `error.response.data.message` is undefined and the UI can only show a blanket
+// "Save failed" with no hint of the cause. This runs after the API router and
+// the health check, so only genuinely-unmatched API paths reach it.
+app.use('/api', (req, res) => {
+  res.status(404).json({
+    message: `Endpoint not found: ${req.method} ${req.originalUrl}`,
+  });
+});
+
 // Serve the client build. index.html references its JS/CSS with absolute paths
 // ("/assets/index-<hash>.js"), which resolve against the ORIGIN, not the current
 // directory - correct for the app served at the root of any host, whether that
@@ -243,6 +255,20 @@ if (fs.existsSync(path.join(clientDist, 'index.html'))) {
       );
   });
 }
+
+// Last-resort JSON error handler. A malformed JSON body (body-parser), a multer
+// upload error, or anything thrown outside a controller's try/catch would
+// otherwise become Express's HTML error page - which is exactly the non-JSON
+// response that makes the client fall back to a generic "Save failed". Converting
+// it to JSON (and logging it) keeps the real cause visible on both sides. Must be
+// registered after all routes.
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  const status = err.status || err.statusCode || 500;
+  console.error(`[ERROR] ${req.method} ${req.originalUrl} -> ${status}: ${err.message}`);
+  if (err.stack) console.error(err.stack);
+  res.status(status).json({ message: err.message || 'Server error' });
+});
 
 connectDB().then(async () => {
   // Align every stored role with the current admin rule once per boot, so a
