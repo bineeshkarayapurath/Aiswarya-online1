@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLocale } from '../context/LocaleContext';
 import { useTheme } from '../context/ThemeContext';
 import { resolveMedia } from '../api/client';
-import { roleLabel } from '../lib/permissions';
+import { roleLabel, isAuthorityUser } from '../lib/permissions';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaBookOpen, FaShieldAlt, FaImages, FaSun, FaMoon, FaChevronDown, FaUser, FaMusic } from 'react-icons/fa';
 
@@ -44,7 +44,7 @@ export default function Navbar() {
   const { lang, setLang, t } = useLocale();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+  const isAdmin = isAuthorityUser(user);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
 

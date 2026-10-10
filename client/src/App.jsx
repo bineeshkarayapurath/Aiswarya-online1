@@ -13,6 +13,7 @@ import AuthorityDashboard from './pages/AuthorityDashboard';
 import IDCardPreview from './pages/IDCardPreview';
 import ApplicationPDFPreview from './pages/ApplicationPDFPreview';
 import { useAuth } from './context/AuthContext';
+import { isAuthorityUser } from './lib/permissions';
 
 function MemberOnly({ children }) {
   const { user } = useAuth();
@@ -27,7 +28,11 @@ function MemberOnly({ children }) {
 
 function AdminOnly({ children }) {
   const { user } = useAuth();
-  if (!user || (user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN')) {
+  // Any authority account may open the dashboard: ADMIN / SUPER_ADMIN, or an
+  // executive designation (President, Vice President, Secretary, Joint
+  // Secretary, Executive Committee Member), which keeps its module access even
+  // without the top-level ADMIN role.
+  if (!isAuthorityUser(user)) {
     return <Navigate to="/authority-zone" replace />;
   }
   return children;

@@ -68,15 +68,13 @@ router.post('/auth/admin/login', authLimiter, auth.adminLogin);
 router.post(
   '/admin/requests/:id/approve',
   requireAuth,
-  requireSuperAdmin,
-  requireDesignations(EXEC_OFFICERS),
+  requireOfficerOrAdmin(EXEC_OFFICERS),
   admin.approveRequest
 );
 router.post(
   '/admin/requests/:id/reject',
   requireAuth,
-  requireSuperAdmin,
-  requireDesignations(EXEC_OFFICERS),
+  requireOfficerOrAdmin(EXEC_OFFICERS),
   (req, res, next) => {
     express.json()(req, res, () => next());
   },
@@ -85,57 +83,48 @@ router.post(
 router.put(
   '/admin/requests/:id',
   requireAuth,
-  requireSuperAdmin,
-  requireDesignations(EXEC_OFFICERS),
+  requireOfficerOrAdmin(EXEC_OFFICERS),
   admin.editRequest
 );
 router.get(
   '/admin/requests',
   requireAuth,
-  requireSuperAdmin,
-  requireDesignations(EXEC_OFFICERS),
+  requireOfficerOrAdmin(EXEC_OFFICERS),
   admin.listRequests
 );
 router.get(
   '/admin/users',
   requireAuth,
-  requireSuperAdmin,
-  requireDesignations(EXEC_OFFICERS),
+  requireOfficerOrAdmin(EXEC_OFFICERS),
   admin.listAll
 );
 router.get(
   '/admin/requests/:id',
   requireAuth,
-  requireSuperAdmin,
-  requireDesignations(EXEC_OFFICERS),
+  requireOfficerOrAdmin(EXEC_OFFICERS),
   admin.getUserById
 );
-router.post(
-  '/admin/set-role',
-  requireAuth,
-  requireSuperAdmin,
-  requireDesignations(EXEC_OFFICERS),
-  admin.setRole
-);
+// Top-level role assignment is an administrative action: restricted to the
+// President, Secretary and the authorised Executive Committee Member (the only
+// accounts holding the ADMIN role). The Approved Members table no longer offers
+// it, so nothing in the UI calls this route.
+router.post('/admin/set-role', requireAuth, requireSuperAdmin, admin.setRole);
 router.delete(
   '/admin/users/:id',
   requireAuth,
-  requireSuperAdmin,
-  requireDesignations(EXEC_OFFICERS),
+  requireOfficerOrAdmin(EXEC_OFFICERS),
   admin.deleteUser
 );
 router.put(
   '/admin/users/:id',
   requireAuth,
-  requireSuperAdmin,
-  requireDesignations(EXEC_OFFICERS),
+  requireOfficerOrAdmin(EXEC_OFFICERS),
   admin.updateUser
 );
 router.post(
   '/admin/dev/clear-members',
   requireAuth,
   requireSuperAdmin,
-  requireDesignations(EXEC_OFFICERS),
   admin.clearMembers
 );
 router.put(
@@ -149,19 +138,18 @@ router.put(
 
 
 // Executive Committee (main) — designation management (executive officers)
-router.get('/admin/committee/executive', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), admin.listExecutiveCommittee);
-router.get('/admin/committee/search', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), admin.searchCommitteeMembers);
-router.post('/admin/committee/designation', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), admin.setDesignation);
+router.get('/admin/committee/executive', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), admin.listExecutiveCommittee);
+router.get('/admin/committee/search', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), admin.searchCommitteeMembers);
+router.post('/admin/committee/designation', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), admin.setDesignation);
 
 // Sub-committee management & program registers (executive roles)
-router.get('/admin/committee/members', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), admin.listCommitteeMembers);
-router.post('/admin/committee/assign', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), admin.assignCommitteeMember);
-router.post('/admin/committee/remove', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), admin.removeCommitteeMember);
+router.get('/admin/committee/members', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), admin.listCommitteeMembers);
+router.post('/admin/committee/assign', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), admin.assignCommitteeMember);
+router.post('/admin/committee/remove', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), admin.removeCommitteeMember);
 router.post(
   '/admin/programs',
   requireAuth,
-  requireSuperAdmin,
-  requireDesignations(EXEC_OFFICERS),
+  requireOfficerOrAdmin(EXEC_OFFICERS),
   upload.uploadManager.fields([
     { name: 'minutesPhoto', maxCount: 1 },
     { name: 'attendanceSheetPhoto', maxCount: 1 },
@@ -172,29 +160,25 @@ router.post(
 router.get(
   '/admin/programs',
   requireAuth,
-  requireSuperAdmin,
-  requireDesignations(EXEC_OFFICERS),
+  requireOfficerOrAdmin(EXEC_OFFICERS),
   minutes.listPrograms
 );
 router.get(
   '/admin/programs/:id',
   requireAuth,
-  requireSuperAdmin,
-  requireDesignations(EXEC_OFFICERS),
+  requireOfficerOrAdmin(EXEC_OFFICERS),
   minutes.getProgram
 );
 router.post(
   '/admin/programs/:id/approve',
   requireAuth,
-  requireSuperAdmin,
-  requireDesignations(EXEC_OFFICERS),
+  requireOfficerOrAdmin(EXEC_OFFICERS),
   minutes.approveProgram
 );
 router.post(
   '/admin/programs/:id/reject',
   requireAuth,
-  requireSuperAdmin,
-  requireDesignations(EXEC_OFFICERS),
+  requireOfficerOrAdmin(EXEC_OFFICERS),
   (req, res, next) => {
     express.json()(req, res, () => next());
   },
@@ -217,25 +201,24 @@ router.get('/admin/vouchers/:id', requireAuth, requireOfficerOrAdmin(['Treasurer
 router.post('/admin/vouchers', requireAuth, requireOfficerOrAdmin(['Treasurer']), vouchers.createVoucher);
 
 // Community Service & Relief Fund (executive officers)
-router.get('/admin/community-service/members', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), cs.searchMembers);
-router.post('/admin/community-service', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), galleryUpload.array('photos', 20), cs.createEvent);
-router.get('/admin/community-service', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), cs.listEvents);
-router.get('/admin/community-service/:id', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), cs.getEvent);
-router.put('/admin/community-service/:id', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), cs.updateEvent);
-router.post('/admin/community-service/:id/collections', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), cs.addCollection);
-router.delete('/admin/community-service/:id/collections/:collId', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), cs.removeCollection);
-router.post('/admin/community-service/:id/expenses', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), cs.addExpense);
-router.delete('/admin/community-service/:id/expenses/:expId', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), cs.removeExpense);
-router.post('/admin/community-service/:id/photos', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), galleryUpload.array('photos', 20), cs.addPhotos);
-router.delete('/admin/community-service/:id/photos/:idx', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), cs.removePhoto);
+router.get('/admin/community-service/members', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), cs.searchMembers);
+router.post('/admin/community-service', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), galleryUpload.array('photos', 20), cs.createEvent);
+router.get('/admin/community-service', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), cs.listEvents);
+router.get('/admin/community-service/:id', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), cs.getEvent);
+router.put('/admin/community-service/:id', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), cs.updateEvent);
+router.post('/admin/community-service/:id/collections', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), cs.addCollection);
+router.delete('/admin/community-service/:id/collections/:collId', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), cs.removeCollection);
+router.post('/admin/community-service/:id/expenses', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), cs.addExpense);
+router.delete('/admin/community-service/:id/expenses/:expId', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), cs.removeExpense);
+router.post('/admin/community-service/:id/photos', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), galleryUpload.array('photos', 20), cs.addPhotos);
+router.delete('/admin/community-service/:id/photos/:idx', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), cs.removePhoto);
 
 // Gallery (executive roles)
-router.get('/admin/gallery', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), gallery.listAlbums);
+router.get('/admin/gallery', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), gallery.listAlbums);
 router.post(
   '/admin/gallery',
   requireAuth,
-  requireSuperAdmin,
-  requireDesignations(EXEC_OFFICERS),
+  requireOfficerOrAdmin(EXEC_OFFICERS),
   (req, res, next) => {
     // Wrap multer so its errors (file too large, wrong type, too many files)
     // return a clean JSON message instead of Express's HTML error page.
@@ -252,7 +235,7 @@ router.post(
   },
   gallery.createAlbum
 );
-router.delete('/admin/gallery/:id', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), gallery.deleteAlbum);
+router.delete('/admin/gallery/:id', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), gallery.deleteAlbum);
 
 // Library books catalog (Librarian)
 router.get('/admin/books', requireAuth, requireOfficerOrAdmin(['Librarian']), catalog.listBooks);
@@ -269,10 +252,10 @@ router.post(
 router.delete('/admin/books/:id', requireAuth, requireOfficerOrAdmin(['Librarian']), catalog.deleteBook);
 
 // Assets & inventory management (administrative officers)
-router.get('/assets', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), assets.list);
-router.post('/assets', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), assets.create);
-router.put('/assets/:id', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), assets.update);
-router.delete('/assets/:id', requireAuth, requireSuperAdmin, requireDesignations(EXEC_OFFICERS), assets.deleteAsset);
+router.get('/assets', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), assets.list);
+router.post('/assets', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), assets.create);
+router.put('/assets/:id', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), assets.update);
+router.delete('/assets/:id', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), assets.deleteAsset);
 
 // Book Issue & Return Register (Librarian)
 router.get('/admin/issues', requireAuth, requireOfficerOrAdmin(['Librarian']), issues.listIssues);

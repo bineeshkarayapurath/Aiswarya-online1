@@ -7,6 +7,7 @@ import api from '../api/client';
 import { normalizePhone } from '../lib/club';
 import { validatePassword, scorePassword, STRENGTH_LABELS, STRENGTH_TONES } from '../lib/password';
 import { useAuth } from '../context/AuthContext';
+import { isAuthorityUser } from '../lib/permissions';
 import PasswordInput from '../components/PasswordInput';
 
 // Member login: phone number (or Membership ID) + password.
@@ -36,7 +37,7 @@ export default function MemberLogin() {
     return (
       <Navigate
         to={
-          user.role === 'ADMIN' || user.role === 'SUPER_ADMIN'
+          isAuthorityUser(user)
             ? '/admin/dashboard'
             : user.status === 'APPROVED'
               ? '/member/dashboard'
@@ -80,11 +81,7 @@ export default function MemberLogin() {
 
       setAuth(res.data.token, res.data.user);
       toast.success(`Welcome back, ${res.data.user.fullName}!`);
-      navigate(
-        res.data.user.role === 'ADMIN' || res.data.user.role === 'SUPER_ADMIN'
-          ? '/admin/dashboard'
-          : '/member/dashboard'
-      );
+      navigate(isAuthorityUser(res.data.user) ? '/admin/dashboard' : '/member/dashboard');
     } catch (e) {
       const msg = e.response?.data?.message;
       if (e.response?.data?.pending) {

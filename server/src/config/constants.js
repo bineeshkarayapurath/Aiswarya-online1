@@ -165,11 +165,12 @@ module.exports = {
     'Executive Committee Member',
   ],
   EXECUTIVE_COMMITTEE: 'Executive Committee',
-  // Executive officers granted the administrative capacity: overview, approval
-  // workflows and sub-committee / program management.
-  // Doubles as the set of designations that auto-grant the ADMIN role (see
-  // services/roleService.js), so an officer can never hold a top-level admin
-  // role for a module the designation would not already open.
+  // Executive officers granted module access (overview, approval workflows and
+  // sub-committee / program management) and eligibility for the Authority Zone.
+  //
+  // NOTE: this list no longer auto-grants the ADMIN role. Top-level ADMIN is
+  // restricted to ADMIN_DESIGNATIONS below plus the single authorized Executive
+  // Committee Member (see services/roleService.js).
   EXEC_ACCESS: [
     'President',
     'Vice President',
@@ -177,6 +178,12 @@ module.exports = {
     'Joint Secretary',
     'Executive Committee Member',
   ],
+  // Designations that carry top-level ADMIN authority on their own. The first
+  // approved holder of EXEC_ADMIN_DESIGNATION additionally carries it.
+  ADMIN_DESIGNATIONS: ['President', 'Secretary'],
+  // The designation whose first-approved holder becomes the authorized
+  // Executive Committee admin (see roleService.authorizedExecId).
+  EXEC_ADMIN_DESIGNATION: 'Executive Committee Member',
   // Which Authority Dashboard modules each designation may open. An authority
   // account with NO designation keeps full access (legacy default), so the
   // frontend treats it as "all modules" and the API gate as wide open.

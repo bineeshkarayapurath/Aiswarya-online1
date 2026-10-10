@@ -58,18 +58,30 @@ export function canManageModule(key, designation, role) {
   return canAccessModule(key, designation, role);
 }
 
-// Does this designation carry top-level admin access on its own?
-// Mirrors the server's EXEC_ACCESS / designationGrantsAdmin().
+// Designations that carry top-level admin access on their own. Mirrors the
+// server's config.ADMIN_DESIGNATIONS. The single authorised Executive Committee
+// Member is positional and resolved server-side (the first one designated), so it
+// is NOT listed here — the server reports it to the client as role === 'ADMIN'.
+const ADMIN_GROUP = [DESIGNATIONS.PRESIDENT, DESIGNATIONS.SECRETARY];
+
 export function isDesignationAdmin(designation) {
-  return Boolean(designation) && EXEC_GROUP.includes(designation);
+  return Boolean(designation) && ADMIN_GROUP.includes(designation);
 }
 
+// Does this account belong in the Authority Zone at all? Every executive
+// designation qualifies (they keep their module access), alongside ADMIN and
+// SUPER_ADMIN. Used to gate the dashboard route and its navbar entry so an
+// executive without the ADMIN role is still admitted.
+export function isAuthorityUser(user) {
+  if (!user) return false;
+  if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') return true;
+  return EXEC_GROUP.includes(String(user.designation || '').trim());
+}
 
-
-// The role a member effectively presents. A President / Secretary / Executive
-// Committee Member is ADMIN by virtue of the designation, exactly like the
-// server's effectiveRole(). Keeps the members table honest even if it is
-// rendered from a payload that predates the auto-grant.
+// The role a member effectively presents. A President / Secretary is ADMIN by
+// virtue of the designation, and the authorised Executive Committee Member is
+// reported by the server as role === 'ADMIN'. Keeps the members table honest even
+// if it is rendered from a payload that predates the auto-grant.
 export function effectiveRole(member) {
   if (!member) return 'MEMBER';
   if (member.role && member.role !== 'MEMBER') return member.role;
@@ -87,15 +99,4 @@ export function roleLabel(member) {
   const role = member?.role;
   if (role && role !== 'MEMBER') return role;
   return 'Member';
-}
-
-// True when the member's ADMIN comes from the designation rather than an
-// explicit set-role. Their admin access cannot be revoked by the role dropdown
-// — only by changing the designation — so the control is shown as fixed.
-export function roleIsDesignationDerived(member) {
-  return (
-    member?.role === 'MEMBER' &&
-    member?.status === 'APPROVED' &&
-    isDesignationAdmin(member.designation)
-  );
 }

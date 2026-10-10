@@ -5,7 +5,7 @@ const User = require('../models/User');
 const Counter = require('../models/Counter');
 const { publicUrl } = require('../utils/storage');
 const { generateApplicationPdf, generateIdCardPdf } = require('../services/pdfService');
-const { syncDesignationRole, effectiveRole } = require('../services/roleService');
+const { effectiveRole, authorizedExecId, resyncDesignationRoles } = require('../services/roleService');
 const { ensureMembershipId, nextMembershipId } = require('../services/membershipService');
 const publicCache = require('../services/publicCache');
 
@@ -13,6 +13,7 @@ exports.listRequests = async (req, res) => {
   try {
     const status = req.query.status || 'PENDING_APPROVAL';
     const users = await User.find({ status }).sort({ createdAt: -1 });
+    const authExecId = await authorizedExecId();
     const items = users.map((u) => ({
       _id: u._id,
       fullName: u.fullName,
@@ -29,7 +30,7 @@ exports.listRequests = async (req, res) => {
       designation: u.designation || '',
       // Effective, not stored, so a freshly designated President / Secretary is
       // already recognised as ADMIN by the approvals screen.
-      role: effectiveRole(u),
+      role: effectiveRole(u, authExecId),
       createdAt: u.createdAt,
     }));
     return res.json({ requests: items });
@@ -41,20 +42,22 @@ exports.listRequests = async (req, res) => {
 // Approved members list. Photo URLs are normalised to fully-qualified public
 // URLs so the Approved Members table in the Authority Dashboard renders photos
 // regardless of how they were stored (relative /uploads/... vs CDN).
-// `role` is reported through effectiveRole() so a President / Secretary shows as
-// ADMIN here immediately, without waiting for their next login to persist the
-// auto-grant (and without writing on every list request).
+// `role` is reported through effectiveRole() so a President / Secretary (and the
+// single authorised Executive Committee Member) shows as ADMIN here immediately,
+// without waiting for their next login to persist the auto-grant (and without
+// writing on every list request).
 exports.listAll = async (req, res) => {
   try {
     const users = await User.find({
       role: { $in: [config.ROLES.MEMBER, config.ROLES.ADMIN] },
     }).sort({ createdAt: -1 });
+    const authExecId = await authorizedExecId();
     const view = [];
     for (const u of users) {
       await ensureMembershipId(u);
       const obj = u.toObject();
       delete obj.lowerPhone;
-      obj.role = effectiveRole(obj);
+      obj.role = effectiveRole(obj, authExecId);
       obj.photoUrl = obj.photoUrl ? publicUrl(obj.photoUrl) : '';
       if (obj.applicationPdfUrl) obj.applicationPdfUrl = publicUrl(obj.applicationPdfUrl);
       if (obj.idCardPdfUrl) obj.idCardPdfUrl = publicUrl(obj.idCardPdfUrl);
@@ -385,18 +388,22 @@ exports.setDesignation = async (req, res) => {
     await user.save();
 
     // Apply the role change immediately rather than waiting for the member's
-    // next login / profile fetch, so the roster and dashboard stay in step.
-    await syncDesignationRole(user);
+    // next login / profile fetch, so the roster and dashboard stay in step. A
+    // full pass is required because the authorized Executive Committee Member is
+    // positional: this change may promote or demote a different account.
+    await resyncDesignationRoles();
 
-    // syncDesignationRole can promote to ADMIN, and the member roll counts real
+    // The role re-sync can promote to ADMIN, and the member roll counts real
     // people regardless of role, so the home page total is unaffected here — but
     // the roster summary it shares a cache entry with is not. Drop it anyway:
     // an admin action that changes who is who should never leave a stale count.
     publicCache.invalidate('stats');
 
+    const updated = (await User.findById(user._id)) || user;
+
     return res.json({
       message: next ? `${user.fullName} is now ${next}` : `${user.fullName} is now a General Member`,
-      member: execMemberView(user),
+      member: execMemberView(updated),
     });
   } catch (err) {
     return res.status(500).json({ message: err.message });
