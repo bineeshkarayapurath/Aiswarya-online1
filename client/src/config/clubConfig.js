@@ -138,6 +138,7 @@ export const clubConfig = {
     enableIssues: true, // Book Issue & Return Register
     enablePrograms: true, // Program & Minutes Register
     enableProgramRegistration: true, // Event & Program registration (create events, sub-programs, registrations)
+    enableUpcomingEvents: true, // Upcoming Sports & Cultural events (home page "Upcoming Programs")
     enableAccounts: true, // Accounts & Finance
     enableVouchers: true, // Receipts & Vouchers (auto-syncs with Accounts)
     enableCommunityService: true, // Community Support / relief fund & aid
@@ -174,6 +175,7 @@ export function moduleEnabled(moduleKey) {
     issues: 'enableIssues',
     programs: 'enablePrograms',
     programRegistration: 'enableProgramRegistration',
+    upcomingEvents: 'enableUpcomingEvents',
     accounts: 'enableAccounts',
     vouchers: 'enableVouchers',
     communityService: 'enableCommunityService',

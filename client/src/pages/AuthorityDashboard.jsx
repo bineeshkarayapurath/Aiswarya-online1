@@ -24,6 +24,7 @@ import {
   Receipt,
   HeartPulse,
   Music,
+  CalendarDays,
 } from 'lucide-react';
 import { StatusBadge } from '../components/StatusBadge';
 import Spinner from '../components/Spinner';
@@ -38,6 +39,7 @@ import ExecutiveCommittee from '../components/ExecutiveCommittee';
 import ProgramApprovals from '../components/ProgramApprovals';
 import EventProgramManager from '../components/EventProgramManager';
 import EventRegistrationsList from '../components/EventRegistrationsList';
+import UpcomingEventsPanel from '../components/UpcomingEventsPanel';
 import AssetsPanel from '../components/AssetsPanel';
 import { canAccessModule, effectiveRole, roleLabel } from '../lib/permissions';
 import { moduleEnabled } from '../lib/club';
@@ -105,6 +107,14 @@ const MODULES = [
     icon: Music,
     chip: 'bg-violet-100 text-violet-800',
     card: 'hover:border-violet-600/40',
+  },
+  {
+    key: 'upcomingEvents',
+    titleKey: 'admin.modules.upcomingEvents.title',
+    descKey: 'admin.modules.upcomingEvents.desc',
+    icon: CalendarDays,
+    chip: 'bg-amber-100 text-amber-800',
+    card: 'hover:border-amber-600/40',
   },
   {
     key: 'accounts',
@@ -246,6 +256,7 @@ export default function AuthorityDashboard() {
             {active.key === 'yuvatha' && <CommitteePanel committeeName="Yuvatha" />}
             {active.key === 'programs' && <ProgramsPanel />}
             {active.key === 'programRegistration' && <EventProgramModule />}
+            {active.key === 'upcomingEvents' && <UpcomingEventsPanel />}
             {active.key === 'accounts' && <AccountsPanel />}
             {active.key === 'vouchers' && <ReceiptsAndVouchers />}
             {active.key === 'communityService' && <CommunityServicePanel />}
@@ -254,7 +265,7 @@ export default function AuthorityDashboard() {
             {active.key === 'issues' && <BorrowingPanel />}
             {active.key === 'committee' && <ExecutiveCommittee />}
             {active.key === 'assets' && <AssetsPanel />}
-            {!['approvals', 'members', 'committee', 'settings', 'vanitha', 'bala', 'yuvatha', 'programs', 'programRegistration', 'accounts', 'vouchers', 'communityService', 'gallery', 'catalog', 'issues'].includes(active.key) && (
+            {!['approvals', 'members', 'committee', 'settings', 'vanitha', 'bala', 'yuvatha', 'programs', 'programRegistration', 'upcomingEvents', 'accounts', 'vouchers', 'communityService', 'gallery', 'catalog', 'issues', 'assets'].includes(active.key) && (
               <PlaceholderPanel module={active.data} />
             )}
           </ModuleModal>

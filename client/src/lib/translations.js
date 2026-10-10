@@ -56,6 +56,7 @@ export const en = {
   events: {
     upcoming: 'Upcoming',
     title: 'Sports & Cultural Events',
+    empty: 'Upcoming events will be announced here soon.',
   },
   gallery: {
     moments: 'Moments',
@@ -99,6 +100,7 @@ export const en = {
       issues: { title: 'Book Issue Register', desc: 'Lending & return management' },
       programs: { title: 'Program & Minutes Register', desc: 'Meetings, programs & event gallery' },
       programRegistration: { title: 'Event & Program Registration', desc: 'Create events, sub-programs & manage registrations' },
+      upcomingEvents: { title: 'Upcoming Events', desc: 'Sports & cultural events on the home page' },
       accounts: { title: 'Accounts & Finance', desc: 'Income & expense entries' },
       vouchers: { title: 'Receipts & Vouchers', desc: 'Generate receipts, vouchers & PDFs' },
       communityService: { title: 'Community Support / ആതുരസേവനം', desc: 'Relief fund, collections & aid' },
@@ -164,6 +166,7 @@ export const ml = {
   events: {
     upcoming: 'വരുന്നത്',
     title: 'കായിക, സാംസ്കാരിക പരിപാടികൾ',
+    empty: 'വരാനിരിക്കുന്ന പരിപാടികൾ ഉടൻ ഇവിടെ പ്രഖ്യാപിക്കും.',
   },
   gallery: {
     moments: 'നിമിഷങ്ങൾ',
@@ -207,6 +210,7 @@ export const ml = {
       issues: { title: 'പുസ്തക വായ്പാ രജിസ്റ്റർ', desc: 'വായ്പയും തിരിച്ചടവും നിയന്ത്രിക്കൽ' },
       programs: { title: 'പരിപാടി & മിനിറ്റ്സ് രജിസ്റ്റർ', desc: 'യോഗങ്ങൾ, പരിപാടികൾ & ഇവന്റ് ഗാലറി' },
       programRegistration: { title: 'ആഘോഷ പരിപാടി രജിസ്ട്രേഷൻ', desc: 'ഇവന്റുകൾ, ഉപപരിപാടികൾ & രജിസ്ട്രേഷൻ മാനേജ്മെന്റ്' },
+      upcomingEvents: { title: 'വരാനിരിക്കുന്ന പരിപാടികൾ', desc: 'ഹോം പേജിലെ കായിക, സാംസ്കാരിക പരിപാടികൾ' },
       accounts: { title: 'കണക്കുകളും ധനകാര്യവും', desc: 'വരവ് & ചെലവ് രേഖകൾ' },
       vouchers: { title: 'രസീതുകളും വൗച്ചറുകളും', desc: 'രസീതുകൾ, വൗച്ചറുകൾ & PDF നിർമ്മാണം' },
       communityService: { title: 'കമ്മ്യൂണിറ്റി സപ്പോർട്ട് / ആതുരസേവനം', desc: 'ആശ്വാസഫണ്ട്, സമാഹരണം & സഹായം' },

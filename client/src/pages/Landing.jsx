@@ -172,8 +172,8 @@ export default function Landing() {
       </section>
       )}
 
-      {/* EVENTS */}
-      {featureEnabled('enablePrograms') && (
+      {/* EVENTS — driven by the admin "Upcoming Events" box */}
+      {featureEnabled('enablePrograms') && featureEnabled('enableUpcomingEvents') && (
       <section id="events" className="bg-gradient-to-b from-transparent to-emerald-900/5 py-16">
         <div className="mx-auto max-w-7xl px-4">
           <div className="mb-8">
@@ -182,6 +182,9 @@ export default function Landing() {
               {t('events.title')}
             </h2>
           </div>
+          {events.length === 0 ? (
+            <p className="text-sm text-slate-500 dark:text-emerald-200/60">{t('events.empty')}</p>
+          ) : (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             {events.map((e, i) => (
               <motion.div
@@ -189,27 +192,50 @@ export default function Landing() {
                 initial={{ opacity: 0, x: i % 2 ? 24 : -24 }}
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true }}
-                className="card flex items-center gap-5 p-6"
+                className="card flex flex-col gap-4 p-5 sm:flex-row"
               >
-                <div className="flex h-20 w-20 shrink-0 flex-col items-center justify-center rounded-2xl bg-emerald-900 text-gold-300 shadow-lg">
-                  <span className="text-2xl">{e.emoji}</span>
-                </div>
-                <div className="flex-1">
+                {e.image ? (
+                  <img
+                    src={resolveMedia(e.image)}
+                    alt={e.title}
+                    loading="lazy"
+                    onError={(ev) => {
+                      ev.currentTarget.style.display = 'none';
+                    }}
+                    className="h-44 w-full shrink-0 rounded-xl object-cover sm:h-auto sm:w-36"
+                  />
+                ) : (
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-emerald-900 text-gold-300 shadow-lg">
+                    <span className="text-2xl">{e.emoji}</span>
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
                   <span className="chip bg-gold/10 text-gold">{e.type}</span>
                   <h3 className="mt-2 text-lg font-bold text-slate-800 dark:text-slate-100">{e.title}</h3>
-                  <p className="text-sm text-slate-500 dark:text-emerald-200/60">
-                    {new Date(e.date).toLocaleDateString('en-IN', {
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric',
-                    })}{' '}
-                    &middot; {e.place}
+                  <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-500 dark:text-emerald-200/60">
+                    <FaCalendarAlt className="text-gold" />
+                    {e.date && (
+                      <span>
+                        {new Date(e.date).toLocaleDateString('en-IN', {
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric',
+                        })}
+                      </span>
+                    )}
+                    {e.time && <span>&middot; {e.time}</span>}
+                    {e.place && <span>&middot; {e.place}</span>}
                   </p>
+                  {e.description && (
+                    <p className="mt-2 line-clamp-3 text-sm text-slate-500 dark:text-emerald-200/60">
+                      {e.description}
+                    </p>
+                  )}
                 </div>
-                <FaCalendarAlt className="text-2xl text-emerald-900/20" />
               </motion.div>
             ))}
           </div>
+          )}
         </div>
       </section>
       )}

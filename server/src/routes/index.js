@@ -26,6 +26,7 @@ const vouchers = require('../controllers/voucherController');
 const cs = require('../controllers/communityServiceController');
 const uploadCtrl = require('../controllers/uploadController');
 const events = require('../controllers/eventProgramController');
+const upcomingEvents = require('../controllers/upcomingEventController');
 
 const config = require('../config/constants');
 
@@ -271,6 +272,11 @@ router.post('/admin/issues/:id/return', requireAuth, requireOfficerOrAdmin(['Lib
 
 // Events / Program Registrations (dynamic)
 const EVENT_MANAGERS = [...EXEC_OFFICERS, 'Librarian'];
+// Upcoming Sports & Cultural events — the public "Upcoming Programs" section on
+// the home page is driven by the records an officer maintains in the admin
+// "Upcoming Events" box (also embedded in /public/catalog; see publicController).
+router.get('/public/events', upcomingEvents.list);
+
 router.get('/events', events.listEvents);
 router.get('/events/open', requireAuth, requireMember, events.getOpenForUser);
 router.get('/events/:id', events.getEvent);
@@ -282,6 +288,14 @@ router.delete('/events/:id', requireAuth, requireOfficerOrAdmin(EVENT_MANAGERS),
 router.get('/event-registrations', requireAuth, requireOfficerOrAdmin(EVENT_MANAGERS), events.listRegistrations);
 router.get('/member/event-registrations', requireAuth, requireMember, events.myRegistrations);
 router.post('/member/event-registrations', requireAuth, requireMember, events.register);
+
+// Upcoming sports & cultural events management (executive officers). Poster
+// images are uploaded first through POST /api/upload, then the returned public
+// URL is saved with the event, so this endpoint takes plain JSON.
+router.get('/admin/upcoming-events', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), upcomingEvents.list);
+router.post('/admin/upcoming-events', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), upcomingEvents.create);
+router.put('/admin/upcoming-events/:id', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), upcomingEvents.update);
+router.delete('/admin/upcoming-events/:id', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), upcomingEvents.remove);
 
 // Member
 router.get('/member/profile', requireAuth, requireMember, member.myProfile);

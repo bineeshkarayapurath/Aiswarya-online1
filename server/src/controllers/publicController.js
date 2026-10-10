@@ -1,7 +1,7 @@
 const config = require('../config/constants');
 const Book = require('../models/Book');
 const BookIssue = require('../models/BookIssue');
-const ProgramMinutes = require('../models/ProgramMinutes');
+const UpcomingEvent = require('../models/UpcomingEvent');
 const publicCache = require('../services/publicCache');
 const { resolveSort, DEFAULT_SORT, CATALOG_COLLATION } = require('../services/catalogSort');
 const { countApprovedMembers } = require('../services/membershipService');
@@ -17,15 +17,11 @@ const POPULAR_BOOKS = [
   { id: 6, title: 'Manushyanu Oru Aamukham', author: 'Sukumar Azhikode', category: 'Essays', emoji: '🧠' },
 ];
 
-const EVENTS_EMOJI = {
-  Main: '🏛️',
-  'Vanitha Vedi': '🌸',
-  'Bala Vedi': '🧒',
-  Yuvatha: '⚡',
-};
-
-function eventEmoji(section) {
-  return EVENTS_EMOJI[section] || '📢';
+function eventEmoji(category) {
+  const c = String(category || '').toLowerCase();
+  if (c.includes('sport')) return '🏆';
+  if (c.includes('cultur') || c.includes('art')) return '🎭';
+  return '📢';
 }
 
 function emojiFor(category) {
@@ -143,21 +139,27 @@ function normalizeCatalogQuery({ q, limit, category, author, sort }) {
   };
 }
 
-// Home Page events come ONLY from records explicitly approved by the
-// admin (status APPROVED) — no hardcoded or pending items are published.
+// Home Page "Upcoming Programs" comes from the UpcomingEvent collection the
+// admin maintains in the "Upcoming Events" dashboard box. Only events an officer
+// has published appear; unpublished drafts are hidden until toggled on. Sorted
+// soonest-first so the next event leads; the emoji is derived from the category.
 async function loadEvents() {
-  const events = await ProgramMinutes.find({ status: config.STATUS.APPROVED })
-    .select('section title date')
-    .sort({ date: -1 })
+  const events = await UpcomingEvent.find({ isPublished: true })
+    .select('title date time category venue description posterUrl')
+    .sort({ date: 1, createdAt: -1 })
     .limit(6)
     .lean();
   return events.map((e) => ({
     id: e._id,
-    type: e.section,
+    type: e.category || 'Other',
     title: e.title,
-    date: e.date ? new Date(e.date).toISOString().slice(0, 10) : null,
-    place: config.CLUB.place,
-    emoji: eventEmoji(e.section),
+    date: e.date ? new Date(e.date).toISOString() : null,
+    time: e.time || '',
+    place: e.venue || config.CLUB.place,
+    venue: e.venue || '',
+    description: e.description || '',
+    image: e.posterUrl || '',
+    emoji: eventEmoji(e.category),
   }));
 }
 

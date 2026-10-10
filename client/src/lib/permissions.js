@@ -33,6 +33,7 @@ export const MODULE_PERMISSIONS = {
   // Event & Program registration: executive officers plus the Librarian
   // designated on the Executive Committee list.
   programRegistration: [...EXEC_GROUP, 'Librarian'],
+  upcomingEvents: EXEC_GROUP,
   accounts: ['Treasurer'],
   vouchers: ['Treasurer'],
   communityService: EXEC_GROUP,
