@@ -62,6 +62,9 @@ export const clubConfig = {
   // ------------------------------------------------------------------------
   branding: {
     logo: '/assets/club-logo.png', // primary logo (nav, footer, PDF letterhead)
+    // Secondary logo (State Library Council) shown centered in the navbar. The
+    // file is optional — if it isn't present yet the navbar hides it gracefully.
+    logo2: '/assets/images/logo2.png',
     favicon: '/assets/club-logo.png', // browser tab icon
     heroBannerLight: '/assets/club-banner-light.png', // landing banner (light theme)
     heroBannerDark: '/assets/club-banner-dark.png', // landing banner (dark theme)
@@ -198,6 +201,7 @@ export const CLUB = {
   fullName_short: `${clubConfig.organization.name}, ${clubConfig.organization.place}`,
   regNo: clubConfig.organization.regNo,
   logo: clubConfig.branding.logo,
+  logo2: clubConfig.branding.logo2,
   establishedYear: clubConfig.organization.establishedYear,
   tagline: clubConfig.branding.tagline,
 };

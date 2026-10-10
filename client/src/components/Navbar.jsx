@@ -46,6 +46,7 @@ export default function Navbar() {
   const navigate = useNavigate();
   const isAdmin = isAuthorityUser(user);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [councilLogoBroken, setCouncilLogoBroken] = useState(false);
   const menuRef = useRef(null);
 
   // "My Profile" is the personal member dashboard for every logged-in account
@@ -80,7 +81,7 @@ export default function Navbar() {
       animate={{ y: 0, opacity: 1 }}
       className="sticky top-0 z-50 glass shadow-sm"
     >
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-4 py-3">
+      <div className="mx-auto grid max-w-7xl grid-cols-[1fr_auto_1fr] items-center gap-2 px-4 py-3">
         <Link to="/" className="flex min-w-0 items-center gap-3">
           <img
             src={CLUB.logo}
@@ -105,7 +106,22 @@ export default function Navbar() {
           </div>
         </Link>
 
-        <nav className="flex items-center gap-1.5 sm:gap-2">
+        {/* State Library Council logo — centered between the brand and the nav.
+            Kept square/natural (no rounding) at the main logo's scale; hidden
+            entirely if the image is missing so the header never shows a broken
+            icon or distorts. */}
+        {CLUB.logo2 && !councilLogoBroken && (
+          <div className="flex min-w-0 items-center justify-center">
+            <img
+              src={CLUB.logo2}
+              alt="State Library Council"
+              onError={() => setCouncilLogoBroken(true)}
+              className="h-10 w-10 shrink-0 object-contain sm:h-12 sm:w-12"
+            />
+          </div>
+        )}
+
+        <nav className="flex items-center justify-self-end gap-1.5 sm:gap-2">
           {user ? (
             <div ref={menuRef} className="relative">
               <button
