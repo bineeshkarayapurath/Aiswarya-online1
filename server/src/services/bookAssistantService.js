@@ -146,9 +146,9 @@ function extractJson(text) {
 }
 
 // `responseFormat` is optional because not every OpenAI-compatible provider
-// accepts it: Gemini's endpoint takes json_object, but others reject the field
-// with a 400. Dropping it is safe here because extractJson() copes with JSON
-// wrapped in prose or fences anyway.
+// accepts it: OpenRouter and OpenAI take json_object, but others reject the
+// field with a 400. Dropping it is safe here because extractJson() copes with
+// JSON wrapped in prose or fences anyway.
 async function callModel(title, author, { responseFormat = true } = {}) {
   const userText = author
     ? `Book title: ${title}\nAuthor (use as a hint only, the member may have misspelled it): ${author}`
@@ -165,14 +165,20 @@ async function callModel(title, author, { responseFormat = true } = {}) {
   };
   if (responseFormat) requestBody.response_format = { type: 'json_object' };
 
+  const headers = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${config.AI.apiKey}`,
+  };
+  // Optional OpenRouter attribution headers. Sent only when configured, so the
+  // same request works unchanged against any other provider.
+  if (config.AI.siteUrl) headers['HTTP-Referer'] = config.AI.siteUrl;
+  if (config.AI.appName) headers['X-Title'] = config.AI.appName;
+
   let res;
   try {
     res = await fetch(`${config.AI.baseUrl}/chat/completions`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${config.AI.apiKey}`,
-      },
+      headers,
       body: JSON.stringify(requestBody),
       signal: AbortSignal.timeout(config.AI.timeoutMs),
     });
@@ -189,8 +195,23 @@ async function callModel(title, author, { responseFormat = true } = {}) {
     // the API key and account details, so it must never reach the log or the
     // response.
     console.warn(`[book-assistant] upstream responded ${res.status}`);
-    // 404 and 400 are almost always a misconfigured base URL or model id rather
-    // than anything the member did, so they get an actionable message.
+    // These map onto OpenRouter's documented status codes (and are harmless for
+    // other providers): 401 bad key, 402 out of credits, 429 rate limited.
+    // Each one gets a clean, actionable message instead of a raw provider error.
+    if (res.status === 401 || res.status === 403) {
+      throw new AssistantError(
+        'invalid_key',
+        502,
+        'The AI service rejected the configured API key. An administrator needs to check OPENROUTER_API_KEY.',
+      );
+    }
+    if (res.status === 402) {
+      throw new AssistantError(
+        'no_credits',
+        502,
+        'The AI service account has no credits left. An administrator needs to top up the OpenRouter balance.',
+      );
+    }
     if (res.status === 404) {
       throw new AssistantError(
         'bad_endpoint',
@@ -205,13 +226,18 @@ async function callModel(title, author, { responseFormat = true } = {}) {
         'The AI service rejected the request. Check that AI_MODEL is a valid model for AI_BASE_URL.',
       );
     }
-    const message =
-      res.status === 401 || res.status === 403
-        ? 'The AI service rejected the configured API key.'
-        : res.status === 429
-          ? 'The AI service is rate limited right now. Please try again shortly.'
-          : 'The AI service is unavailable right now. Please try again shortly.';
-    throw new AssistantError('upstream', 502, message);
+    if (res.status === 429) {
+      throw new AssistantError(
+        'rate_limited',
+        502,
+        'The AI service is rate limited right now. Please try again shortly.',
+      );
+    }
+    throw new AssistantError(
+      'upstream',
+      502,
+      'The AI service is unavailable right now. Please try again shortly.',
+    );
   }
 
   let payload;
@@ -237,7 +263,7 @@ async function describeBook({ title, author }) {
     throw new AssistantError(
       'not_configured',
       503,
-      'The AI Book Assistant is not configured yet. An administrator needs to add an AI_API_KEY to the server environment.',
+      'The AI Book Assistant is not configured yet. An administrator needs to add OPENROUTER_API_KEY to the server environment.',
     );
   }
 
@@ -263,9 +289,22 @@ async function describeBook({ title, author }) {
     } catch (e) {
       lastError = e;
       if (!(e instanceof AssistantError)) throw e;
-      // Connection-level problems are not worth repeating, and a rejected key or
-      // endpoint will fail identically no matter which body we send.
-      if (['timeout', 'unreachable', 'not_configured', 'missing_title', 'bad_endpoint', 'upstream'].includes(e.code)) {
+      // Connection-level problems are not worth repeating, and a rejected key,
+      // an empty account, a rate limit or an unknown endpoint will fail
+      // identically no matter which body we send.
+      if (
+        [
+          'timeout',
+          'unreachable',
+          'not_configured',
+          'missing_title',
+          'bad_endpoint',
+          'invalid_key',
+          'no_credits',
+          'rate_limited',
+          'upstream',
+        ].includes(e.code)
+      ) {
         throw e;
       }
     }

@@ -126,26 +126,42 @@ module.exports = {
 
   // AI Book Assistant.
   //
-  // Deliberately provider-agnostic: anything exposing an OpenAI-compatible
-  // POST {base}/chat/completions works, so the club is not tied to one vendor.
+  // OpenRouter is the default provider. It speaks the OpenAI-compatible
+  // POST {base}/chat/completions API, so the service itself stays
+  // provider-agnostic: point AI_BASE_URL / AI_MODEL elsewhere to use OpenAI,
+  // Groq, a local Ollama, etc. without touching any code.
+  //   OpenRouter  AI_BASE_URL=https://openrouter.ai/api/v1  (default)
   //   OpenAI      AI_BASE_URL=https://api.openai.com/v1
-  //   OpenRouter  AI_BASE_URL=https://openrouter.ai/api/v1
   //   Groq        AI_BASE_URL=https://api.groq.com/openai/v1
-  //   Gemini      AI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
-  //   Ollama      AI_BASE_URL=http://127.0.0.1:11434/v1  (AI_API_KEY can be "ollama")
+  //   Ollama      AI_BASE_URL=http://127.0.0.1:11434/v1      (API key can be "ollama")
   // With no key the feature reports itself as unconfigured rather than failing
   // with a confusing upstream error.
   AI: {
     // .trim() handles a stray newline from copy-paste. Surrounding quotes are
-    // stripped too: a dashboard or shell that stores AI_API_KEY="AIza..." sends
-    // those quote characters to the provider verbatim, which comes back as a
-    // baffling 401 "API key not valid" rather than an obvious config error.
-    apiKey: (process.env.AI_API_KEY || '').trim().replace(/^["'](.*)["']$/, '$1'),
-    baseUrl: (process.env.AI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, ''),
-    model: process.env.AI_MODEL || 'gpt-4o-mini',
+    // stripped too: a dashboard or shell that stores the key with quotes sends
+    // those characters to the provider verbatim, which comes back as a baffling
+    // 401 rather than an obvious config error.
+    //
+    // OPENROUTER_API_KEY is read first and preferred; AI_API_KEY stays supported
+    // as a generic fallback so an existing deployment on another provider keeps
+    // working after this change.
+    apiKey: (process.env.OPENROUTER_API_KEY || process.env.AI_API_KEY || '')
+      .trim()
+      .replace(/^["'](.*)["']$/, '$1'),
+    baseUrl: (process.env.AI_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/+$/, ''),
+    // A free OpenRouter model by default: Nemotron 3 Super (120B MoE) is free
+    // and advertises structured outputs / response_format, so the strict-JSON
+    // request works on the first attempt. Override with AI_MODEL to use any
+    // model the configured provider offers (e.g. "openai/gpt-4o-mini").
+    model: process.env.AI_MODEL || 'nvidia/nemotron-3-super-120b-a12b:free',
     timeoutMs: parseInt(process.env.AI_TIMEOUT_MS || '25000', 10),
-    // Each question costs money, so a signed-in member is capped per hour.
+    // Each question costs money (or free-tier quota), so a signed-in member is
+    // capped per hour.
     maxPerHour: parseInt(process.env.AI_MAX_PER_HOUR || '20', 10),
+    // OpenRouter-recommended attribution headers (optional). They only affect
+    // the provider's app rankings/analytics, never the response.
+    siteUrl: (process.env.OPENROUTER_SITE_URL || '').trim(),
+    appName: (process.env.OPENROUTER_APP_NAME || '').trim(),
   },
   COMMITTEES: {
     VANITHA: 'Vanitha Vedi',

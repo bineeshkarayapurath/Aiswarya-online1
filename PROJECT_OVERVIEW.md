@@ -182,7 +182,8 @@ npm run dev            # http://localhost:5173
 - **server**: `.env` — `MONGO_URI`, `JWT_SECRET`, `PUBLIC_API_URL`, `CLIENT_URLS`,
   `CLIENT_DIST_DIR`, `BCRYPT_SALT_ROUNDS`, `PASSWORD_MIN_LENGTH`, `PASSWORD_MAX_LENGTH`, `IMG_BB_API_KEY`,
   `MEMBERSHIP_PREFIX`, `SUPER_ADMIN_PHONES`, and the optional AI Book Assistant keys
-  (`AI_API_KEY`, `AI_BASE_URL`, `AI_MODEL`, `AI_TIMEOUT_MS`, `AI_MAX_PER_HOUR`).
+  (`OPENROUTER_API_KEY`, `AI_BASE_URL`, `AI_MODEL`, `AI_TIMEOUT_MS`, `AI_MAX_PER_HOUR`, plus the
+  optional `OPENROUTER_SITE_URL` / `OPENROUTER_APP_NAME` attribution headers).
   See `server/.env.example`.
 - **client**: `.env` — `VITE_API_BASE_URL` (`/api` in dev, absolute Render URL in production).
 
@@ -259,10 +260,14 @@ published year, language, themes, key points, reading level, estimated reading t
 dashboard next to the catalogue, gated by `enableCatalog` and by `requireAuth` + `requireMember`, so
 only members with an approved application can spend provider quota.
 
+**OpenRouter is the default provider.** Set `OPENROUTER_API_KEY` and the assistant is live with
+`AI_BASE_URL=https://openrouter.ai/api/v1` and `AI_MODEL=nvidia/nemotron-3-super-120b-a12b:free`
+(a free model that supports structured outputs; free model ids are retired over time, so swap
+`AI_MODEL` for any current free or paid model on the account when needed).
+
 It is deliberately **provider-agnostic**: `bookAssistantService` posts to
-`{AI_BASE_URL}/chat/completions` with an `Authorization: Bearer` header, so OpenAI, OpenRouter, Groq,
-Gemini's OpenAI-compatible endpoint, or a local Ollama all work by changing two env values. The key
-never reaches the browser.
+`{AI_BASE_URL}/chat/completions` with an `Authorization: Bearer` header, so OpenAI, Groq, or a local
+Ollama all work by changing two env values. The key never reaches the browser.
 
 Three things make a non-deterministic model safe to render directly:
 
@@ -284,6 +289,12 @@ Three things make a non-deterministic model safe to render directly:
   and report that `AI_BASE_URL` / `AI_MODEL` need checking, rather than as a transient failure to
   retry pointlessly.
 
-With `AI_API_KEY` unset the feature reports itself as unconfigured (`503`, and a short
+Every upstream failure maps to a clean, member-safe message instead of a raw provider error: an
+invalid key (`401`/`403`) reports that an administrator should check `OPENROUTER_API_KEY`, an empty
+balance (`402`) reports that the account needs topping up, a rate limit (`429`) asks the member to
+try again shortly, and a bad model/endpoint (`404`/`400`) names the env values to check. Only the
+HTTP status is ever logged.
+
+With `OPENROUTER_API_KEY` unset the feature reports itself as unconfigured (`503`, and a short
 `GET /api/member/book-assistant` status probe) and the dashboard shows what an administrator needs
 to add. No upstream call is made, so an unconfigured deployment behaves normally.

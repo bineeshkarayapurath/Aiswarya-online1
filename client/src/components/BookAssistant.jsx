@@ -118,10 +118,12 @@ export default function BookAssistant() {
         <div className="mt-4 rounded-xl border border-amber-500/40 bg-amber-50 p-4 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-200">
           <strong className="block font-bold">The Book Assistant is not configured yet.</strong>
           <span className="mt-1 block text-xs">
-            An administrator needs to set <code className="font-mono">AI_API_KEY</code> (and
-            optionally <code className="font-mono">AI_BASE_URL</code> /{' '}
+            An administrator needs to set{' '}
+            <code className="font-mono">OPENROUTER_API_KEY</code> (optionally with{' '}
+            <code className="font-mono">AI_BASE_URL</code> /{' '}
             <code className="font-mono">AI_MODEL</code>) in the server environment. Any
-            OpenAI-compatible provider works. Everything else on this page is ready.
+            OpenAI-compatible provider works, and OpenRouter is the default. Everything
+            else on this page is ready.
           </span>
         </div>
       )}
