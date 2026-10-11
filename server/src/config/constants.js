@@ -149,11 +149,12 @@ module.exports = {
       .trim()
       .replace(/^["'](.*)["']$/, '$1'),
     baseUrl: (process.env.AI_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/+$/, ''),
-    // A free OpenRouter model by default: Nemotron 3 Super (120B MoE) is free
-    // and advertises structured outputs / response_format, so the strict-JSON
-    // request works on the first attempt. Override with AI_MODEL to use any
-    // model the configured provider offers (e.g. "openai/gpt-4o-mini").
-    model: process.env.AI_MODEL || 'nvidia/nemotron-3-super-120b-a12b:free',
+    // A small standard OpenRouter model by default. gpt-4o-mini is cheap
+    // (~$0.001 per answer), fast, and - unlike today's free models -
+    // reliably produces fluent Malayalam structured JSON. Override with
+    // AI_MODEL to use any model the configured provider offers (e.g. a
+    // ":free" model like "liquid/lfm-2.5-2.6b:free" when the free tier is up).
+    model: process.env.AI_MODEL || 'openai/gpt-4o-mini',
     timeoutMs: parseInt(process.env.AI_TIMEOUT_MS || '25000', 10),
     // Each question costs money (or free-tier quota), so a signed-in member is
     // capped per hour.

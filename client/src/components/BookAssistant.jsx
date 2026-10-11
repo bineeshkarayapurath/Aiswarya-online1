@@ -7,6 +7,7 @@ import {
   FaClock,
   FaBook,
   FaQuestionCircle,
+  FaAward,
 } from 'react-icons/fa';
 import { Sparkles } from 'lucide-react';
 import api from '../api/client';
@@ -111,7 +112,7 @@ export default function BookAssistant() {
       </div>
 
       <p className="text-sm text-slate-500">
-        Type a book title and get a summary, its themes, key points and what else to read next.
+        Type a book title and get a summary, its themes, awards, key points and what else to read next - answered in Malayalam.
       </p>
 
       {notConfigured && (
@@ -197,6 +198,12 @@ export default function BookAssistant() {
           {book.themes.length > 0 && (
             <Block icon={<FaLightbulb className="text-gold" />} title="Themes">
               <Chips items={book.themes} tone="gold" />
+            </Block>
+          )}
+
+          {book.awards.length > 0 && (
+            <Block icon={<FaAward className="text-gold" />} title="Awards & honours">
+              <Chips items={book.awards} tone="gold" />
             </Block>
           )}
 

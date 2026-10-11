@@ -255,15 +255,23 @@ account is told to register first.
 ### AI Book Assistant
 
 `POST /api/member/book-assistant` takes `{ title, author? }` and returns a summary, author, genre,
-published year, language, themes, key points, reading level, estimated reading time, three to four
-"read next" recommendations with reasons, and club discussion questions. It sits under the member
+published year, language, themes, awards, key points, reading level, estimated reading time, three to
+four "read next" recommendations with reasons, and club discussion questions. It sits under the member
 dashboard next to the catalogue, gated by `enableCatalog` and by `requireAuth` + `requireMember`, so
 only members with an approved application can spend provider quota.
 
+The system prompt forces every piece of generated text - author, genre, summary, themes, awards, key
+points, similar-book reasons and discussion questions - to be written strictly and naturally in
+**Malayalam (Malayalam script)** for the club's readers. Machine values stay as-is: published year and
+reading time stay numeric, and `readingLevel` keeps the fixed `Easy` / `Moderate` / `Challenging`
+enum. Book titles keep their original script unless a standard Malayalam title is widely used.
+
 **OpenRouter is the default provider.** Set `OPENROUTER_API_KEY` and the assistant is live with
-`AI_BASE_URL=https://openrouter.ai/api/v1` and `AI_MODEL=nvidia/nemotron-3-super-120b-a12b:free`
-(a free model that supports structured outputs; free model ids are retired over time, so swap
-`AI_MODEL` for any current free or paid model on the account when needed).
+`AI_BASE_URL=https://openrouter.ai/api/v1` and `AI_MODEL=openai/gpt-4o-mini` (a small standard model
+that is cheap — roughly $0.001 per answer — and reliably produces fluent Malayalam structured JSON;
+contracting to a free model id is possible but free models at the time of writing returned empty
+completions whenever told to answer in Malayalam, so keep `AI_MODEL` on a standard model until the
+free tier is healthy).
 
 It is deliberately **provider-agnostic**: `bookAssistantService` posts to
 `{AI_BASE_URL}/chat/completions` with an `Authorization: Bearer` header, so OpenAI, Groq, or a local
@@ -292,8 +300,9 @@ Three things make a non-deterministic model safe to render directly:
 Every upstream failure maps to a clean, member-safe message instead of a raw provider error: an
 invalid key (`401`/`403`) reports that an administrator should check `OPENROUTER_API_KEY`, an empty
 balance (`402`) reports that the account needs topping up, a rate limit (`429`) asks the member to
-try again shortly, and a bad model/endpoint (`404`/`400`) names the env values to check. Only the
-HTTP status is ever logged.
+try again shortly, a bad model/endpoint (`404`/`400`) names the env values to check, and an empty or
+blank completion (`empty_response`, sometimes returned by free models) asks the member to try again -
+with one automatic retry without `response_format` first. Only the HTTP status is ever logged.
 
 With `OPENROUTER_API_KEY` unset the feature reports itself as unconfigured (`503`, and a short
 `GET /api/member/book-assistant` status probe) and the dashboard shows what an administrator needs

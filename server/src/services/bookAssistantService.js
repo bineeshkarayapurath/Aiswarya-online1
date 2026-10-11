@@ -46,7 +46,15 @@ function cacheSet(key, value) {
   while (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);
 }
 
-const SYSTEM_PROMPT = `You are the reading adviser for a community club library.
+const SYSTEM_PROMPT = `You are the reading adviser for a community club library in Kerala whose readers speak Malayalam. You must always reply in natural, fluent Malayalam.
+
+Language rules (apply to the whole reply):
+- Every piece of text you generate MUST be written in Malayalam (Malayalam script) and read naturally, the way a native Malayalam speaker would write it - never literal or machine-translated prose.
+- This includes the author's name (use the common Malayalam transliteration when one exists, otherwise keep the original), genre, summary, themes, awards, key points, similar-book reasons and discussion questions.
+- A book title normally keeps its original script, unless a standard Malayalam title is widely used for it.
+- language must name the book's original language in Malayalam (e.g. ഇംഗ്ലീഷ്, മലയാളം, ഹിന്ദി).
+- Keep machine values as-is: publishedYear stays a 4-digit number, readingTimeMinutes stays a number, and readingLevel stays exactly one of the English tokens listed below - do not translate it.
+
 Given a book title (and optionally an author), reply with STRICT JSON only - no markdown, no code fences, no commentary - using exactly these keys:
 
 {
@@ -57,6 +65,7 @@ Given a book title (and optionally an author), reply with STRICT JSON only - no 
   "language": string,
   "summary": string,
   "themes": string[],
+  "awards": string[],
   "keyPoints": string[],
   "readingLevel": string,
   "readingTimeMinutes": number,
@@ -64,17 +73,20 @@ Given a book title (and optionally an author), reply with STRICT JSON only - no 
   "discussionQuestions": string[]
 }
 
+Always provide EVERY field - never omit author, publishedYear, genre, summary, themes, awards, keyPoints, readingLevel, readingTimeMinutes, similarBooks or discussionQuestions.
+
 Rules:
-- summary: 3 to 5 sentences, plain prose, no spoilers for the ending.
-- themes: 3 to 5 short noun phrases.
-- keyPoints: 3 to 5 single-sentence takeaways.
-- readingLevel: one of "Easy", "Moderate", "Challenging".
-- similarBooks: 3 to 4 genuinely different books, each with a one-line reason.
-- discussionQuestions: 3 to 4 questions suitable for a club discussion group.
-- If you are unsure about a specific detail, give your best answer rather than
-  refusing, but never invent a publication year - use "" if you do not know.
-- If the title is ambiguous, describe the best-known book with that title and
-  set "author" to the author you assumed.`;
+- summary: 3 to 5 sentences, plain prose, no spoilers for the ending, all in Malayalam.
+- themes: 3 to 5 short noun phrases, in Malayalam.
+- awards: 1 to 3 notable awards or honours won by the book or its author, written in Malayalam (e.g. പുലിത്സർ പുരസ്കാരം). If you do not know of any awards, return an empty list - NEVER invent awards.
+- keyPoints: 3 to 5 single-sentence takeaways, in Malayalam.
+- readingLevel: exactly one of "Easy", "Moderate", "Challenging" (machine value, do not translate).
+- readingTimeMinutes: a positive whole number.
+- similarBooks: 3 to 4 genuinely different books; give each title in its commonly used Malayalam form when one exists, otherwise keep the original, and give a one-line "why" in Malayalam.
+- discussionQuestions: 3 to 4 questions suitable for a club discussion group, in Malayalam.
+- publishedYear: the actual publication year as a 4-digit number; if you do not know it, use "" - never invent a year.
+- If the title is ambiguous, describe the best-known book with that title and set "author" to the author you assumed.
+- If you are unsure about a specific detail, give your best answer rather than refusing.`;
 
 // Coerce whatever the model produced into the shape the UI renders. Anything
 // unusable becomes an empty list rather than an exception in the client.
@@ -104,6 +116,7 @@ function normalise(raw, askedTitle, askedAuthor) {
     language: str(o.language, 60),
     summary: str(o.summary) || 'No summary was returned for this title.',
     themes: strList(o.themes, 6, 80),
+    awards: strList(o.awards, 4, 180),
     keyPoints: strList(o.keyPoints, 6, 300),
     readingLevel: ['Easy', 'Moderate', 'Challenging'].includes(str(o.readingLevel, 20))
       ? str(o.readingLevel, 20)
@@ -130,7 +143,7 @@ function isConfigured() {
 // or padded with prose, then parse it.
 function extractJson(text) {
   const raw = str(text, 20000);
-  if (!raw) throw new AssistantError('empty_response', 502, 'The AI service returned nothing.');
+  if (!raw) throw new AssistantError('empty_response', 502, 'The AI service returned an empty answer. Please try again.');
   const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(raw);
   const body = fenced ? fenced[1] : raw;
   const start = body.indexOf('{');
@@ -157,7 +170,7 @@ async function callModel(title, author, { responseFormat = true } = {}) {
   const requestBody = {
     model: config.AI.model,
     temperature: 0.4,
-    max_tokens: 1200,
+    max_tokens: 2000,
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: userText },
@@ -246,9 +259,31 @@ async function callModel(title, author, { responseFormat = true } = {}) {
   } catch (e) {
     throw new AssistantError('bad_response', 502, 'The AI service returned an unreadable answer.');
   }
-  const content = payload && payload.choices && payload.choices[0] && payload.choices[0].message
-    ? payload.choices[0].message.content
-    : '';
+  // Some proxies answer 200 with an error object instead of a completion.
+  if (payload && payload.error && !payload.choices) {
+    console.warn(
+      `[book-assistant] upstream error object: ${payload.error.type || payload.error.code || 'unknown'}`,
+    );
+    throw new AssistantError(
+      'upstream',
+      502,
+      'The AI service could not answer right now. Please try again shortly.',
+    );
+  }
+  const content =
+    payload && payload.choices && payload.choices[0] && payload.choices[0].message
+      ? payload.choices[0].message.content
+      : '';
+  if (!str(content)) {
+    // Free models occasionally complete with an empty message. Surface this as a
+    // clean, retryable error (describeBook() retries once without response_format).
+    console.warn('[book-assistant] model returned an empty response');
+    throw new AssistantError(
+      'empty_response',
+      502,
+      'The AI service returned an empty answer. Please try again.',
+    );
+  }
   return extractJson(content);
 }
 
