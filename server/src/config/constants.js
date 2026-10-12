@@ -192,6 +192,13 @@ module.exports = {
   // Executive officers granted module access (overview, approval workflows and
   // sub-committee / program management) and eligibility for the Authority Zone.
   //
+  // The Librarian is included for Authority Zone eligibility only: it is an
+  // Executive Committee designation that owns the Book Catalog and the Book
+  // Issue / Return register, so it must be able to sign in and open the
+  // dashboard. What it can then open is still decided by MODULE_PERMISSIONS
+  // (and the per-route gates), so it never reaches approvals, accounts,
+  // settings or the committee.
+  //
   // NOTE: this list no longer auto-grants the ADMIN role. Top-level ADMIN is
   // restricted to ADMIN_DESIGNATIONS below plus the single authorized Executive
   // Committee Member (see services/roleService.js).
@@ -201,6 +208,7 @@ module.exports = {
     'Secretary',
     'Joint Secretary',
     'Executive Committee Member',
+    'Librarian',
   ],
   // Designations that carry top-level ADMIN authority on their own.
   ADMIN_DESIGNATIONS: ['President', 'Secretary'],

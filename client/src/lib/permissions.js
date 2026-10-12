@@ -23,6 +23,14 @@ const EXEC_GROUP = [
   DESIGNATIONS.EXECUTIVE_MEMBER,
 ];
 
+// Designations admitted to the Authority Zone. EXEC_GROUP plus the Librarian:
+// the Librarian owns the Catalog and the Book Issue / Return register and must
+// be able to open the dashboard, but it is deliberately NOT part of EXEC_GROUP,
+// so it still only sees the modules MODULE_PERMISSIONS grants it (never
+// approvals, members, programs, accounts, settings, ...). Mirrors the server's
+// config.EXEC_ACCESS.
+const AUTHORITY_DESIGNATIONS = [...EXEC_GROUP, DESIGNATIONS.LIBRARIAN];
+
 export const MODULE_PERMISSIONS = {
   approvals: EXEC_GROUP,
   members: EXEC_GROUP,
@@ -82,14 +90,41 @@ export function isMemberIdAdmin(member) {
 
 // Does this account belong in the Authority Zone at all? The admin allowlist and
 // President / Secretary qualify, and every other executive designation qualifies
-// too (they keep their module access even though they are not admins). Used to
-// gate the dashboard route and its navbar entry so an executive without the
-// ADMIN role is still admitted.
+// too — including the Librarian — since they keep their module access even
+// though they are not admins. Used to gate the dashboard route and its navbar
+// entry so an officer without the ADMIN role is still admitted.
 export function isAuthorityUser(user) {
   if (!user) return false;
   if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') return true;
   if (isMemberIdAdmin(user)) return true;
-  return EXEC_GROUP.includes(String(user.designation || '').trim());
+  return AUTHORITY_DESIGNATIONS.includes(String(user.designation || '').trim());
+}
+
+// The Librarian designation. A Librarian is a club member with an extra duty —
+// the Book Catalog and the Book Issue / Return register — not a top-level
+// administrator. Wherever "member view" and "officer tool" must coexist this is
+// what distinguishes them from a genuine admin.
+export function isLibrarian(user) {
+  return String(user?.designation || '').trim() === DESIGNATIONS.LIBRARIAN;
+}
+
+// Where a signed-in account should land. Genuine administrators and executive
+// officers open the Authority Dashboard. The Librarian is a member first: its
+// home is the member dashboard, which carries the Book Issue Register for it, so
+// it lands there while still keeping the Admin Panel entry in the navbar. An
+// account that is both a Librarian and a top-level admin still goes to the
+// Authority Dashboard.
+export function dashboardPath(user) {
+  if (!isAuthorityUser(user)) return '/member/dashboard';
+  if (
+    isLibrarian(user) &&
+    user.role !== 'ADMIN' &&
+    user.role !== 'SUPER_ADMIN' &&
+    !isMemberIdAdmin(user)
+  ) {
+    return '/member/dashboard';
+  }
+  return '/admin/dashboard';
 }
 
 // The role a member effectively presents. ADMIN is reported only for the

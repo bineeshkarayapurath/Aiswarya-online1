@@ -7,7 +7,7 @@ import api from '../api/client';
 import { normalizePhone } from '../lib/club';
 import { validatePassword, scorePassword, STRENGTH_LABELS, STRENGTH_TONES } from '../lib/password';
 import { useAuth } from '../context/AuthContext';
-import { isAuthorityUser } from '../lib/permissions';
+import { isAuthorityUser, dashboardPath } from '../lib/permissions';
 import PasswordInput from '../components/PasswordInput';
 
 // Member login: phone number (or Membership ID) + password.
@@ -46,7 +46,7 @@ export default function MemberLogin() {
         to={
           redirect ||
           (isAuthorityUser(user)
-            ? '/admin/dashboard'
+            ? dashboardPath(user)
             : user.status === 'APPROVED'
               ? '/member/dashboard'
               : '/pending')
@@ -89,7 +89,7 @@ export default function MemberLogin() {
 
       setAuth(res.data.token, res.data.user);
       toast.success(`Welcome back, ${res.data.user.fullName}!`);
-      navigate(redirect || (isAuthorityUser(res.data.user) ? '/admin/dashboard' : '/member/dashboard'));
+      navigate(redirect || dashboardPath(res.data.user));
     } catch (e) {
       const msg = e.response?.data?.message;
       if (e.response?.data?.pending) {

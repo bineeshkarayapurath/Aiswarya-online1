@@ -12,9 +12,10 @@ import MemberReceipts from '../components/MemberReceipts';
 import EventProgramRegistrations from '../components/EventProgramRegistrations';
 import BookAssistant from '../components/BookAssistant';
 import BookFestivalRequests from '../components/BookFestivalRequests';
+import BorrowingPanel from '../components/BorrowingPanel';
 import Polls from '../components/Polls';
-import { featureEnabled, subcommitteeEnabled, CLUB } from '../lib/club';
-import { roleLabel } from '../lib/permissions';
+import { featureEnabled, subcommitteeEnabled, moduleEnabled, CLUB } from '../lib/club';
+import { roleLabel, canAccessModule, isAuthorityUser } from '../lib/permissions';
 import {
   FaFilePdf,
   FaIdCardAlt,
@@ -256,6 +257,31 @@ export default function MemberDashboard() {
           </div>
         </motion.div>
       </div>
+
+      {/* Book Issue Register — the Librarian's extra duty, shown on top of the
+          complete member profile above (nothing there is hidden or replaced).
+          Any administrator can also use it from their own profile. The panel
+          talks to the same /admin/issues endpoints the Authority Dashboard
+          uses, which already authorise both ADMIN and the Librarian.
+
+          isAuthorityUser(m) is required in addition to canAccessModule():
+          canAccessModule() reports true for any account with no designation
+          (a legacy rule that is safe inside the Authority Dashboard, which an
+          ordinary member cannot reach) and would otherwise expose the register
+          to every plain member here. */}
+      {moduleEnabled('issues') &&
+        isAuthorityUser(m) &&
+        canAccessModule('issues', m.designation, m.role) && (
+        <div className="mt-10 border-t border-slate-200 pt-10">
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <h2 className="flex items-center gap-2 text-lg font-bold text-emerald-900">
+              <FaBookOpen className="text-gold" /> Book Issue Register
+            </h2>
+            <span className="text-xs font-medium text-slate-400">Lending &amp; Return Management</span>
+          </div>
+          <BorrowingPanel />
+        </div>
+      )}
 
       {featureEnabled('enableProgramRegistration') && (
           <div className="mt-10">
