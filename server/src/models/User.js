@@ -57,6 +57,10 @@ const UserSchema = new mongoose.Schema(
   address: encryptedString({ required: true }),
   occupation: encryptedString(),
   education: encryptedString(),
+  // Deliberately NOT an encryptedString: photoUrl holds a public ImgBB URL (or
+  // a relative storage path) and must be stored and returned as plain text.
+  // Only email / address / occupation / education are encrypted at rest (see
+  // utils/fieldCrypto.js); wrapping photoUrl there would break avatars.
   photoUrl: { type: String },
 
   recommender: {

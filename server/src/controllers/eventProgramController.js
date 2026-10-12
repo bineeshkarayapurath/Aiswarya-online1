@@ -6,9 +6,16 @@ const config = require('../config/constants');
 function matchesAudience(eventAudience, user) {
   if (eventAudience === 'Open to All') return true;
   if (!user) return false;
-  const committee = user.committeeName || user.committee || '';
-  if (eventAudience === 'Balavedi') return /balavedi/i.test(committee) || user.isBalavedi;
-  if (eventAudience === 'Vanithavedi') return /vanithavedi/i.test(committee) || user.isVanithavedi;
+  // Wing membership lives in subCommittees[].committeeName ('Balavedi' /
+  // 'Vanithavedi') as well as any legacy top-level committee fields. Join them
+  // all so a wing-specific event is matched for the members actually in it,
+  // instead of always failing the audience filter.
+  const wings = [user.committeeName, user.committee]
+    .concat((user.subCommittees || []).map((s) => s.committeeName))
+    .filter(Boolean)
+    .join(' ');
+  if (eventAudience === 'Balavedi') return /balavedi/i.test(wings) || user.isBalavedi;
+  if (eventAudience === 'Vanithavedi') return /vanithavedi/i.test(wings) || user.isVanithavedi;
   if (eventAudience === 'Library members') return true;
   return false;
 }
@@ -143,7 +150,12 @@ exports.myRegistrations = async (req, res) => {
     const or = [];
     if (user && user._id) or.push({ member: user._id });
     if (user && user.membershipId) or.push({ membershipId: user.membershipId });
-    const filter = or.length > 0 ? { '': or } : {};
+    // The $or list below is required: the previous query sent an empty field
+    // path (''), which MongoDB rejects, so this endpoint returned 500 for every
+    // approved member - and since the member panel loads this next to
+    // /events/open in one Promise.all, the failure hid open events behind
+    // "Registration is CLOSED" even when the admin had enabled one.
+    const filter = or.length > 0 ? { $or: or } : {};
     const regs = await EventRegistration.find(filter).populate('event', 'name targetAudience').sort({ createdAt: -1 });
     res.json({ registrations: regs });
   } catch (err) { res.status(500).json({ message: err.message }); }

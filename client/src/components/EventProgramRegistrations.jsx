@@ -32,17 +32,24 @@ export default function EventProgramRegistrations({ member }) {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [openRes, myRes] = await Promise.all([
+      // Load the open events and the member's own registrations independently:
+      // a failure in one must never hide the other. Previously a broken
+      // registrations query made this whole section report "Registration is
+      // CLOSED" even when events were open and visible server-side.
+      const [openRes, myRes] = await Promise.allSettled([
         api.get('/events/open'),
         api.get('/member/event-registrations'),
       ]);
-      setEvents(openRes.data.events || []);
-      setRegistrations(myRes.data.registrations || []);
-      if ((openRes.data.events || []).length > 0 && !selectedEvent) {
-        setSelectedEvent(openRes.data.events[0]._id);
+      const openEvents = openRes.status === 'fulfilled' ? openRes.value.data.events || [] : [];
+      const myRegs = myRes.status === 'fulfilled' ? myRes.value.data.registrations || [] : [];
+      setEvents(openEvents);
+      setRegistrations(myRegs);
+      if (openRes.status === 'rejected') {
+        toast.error(openRes.reason?.response?.data?.message || 'Failed to load open events');
       }
-    } catch (e) {
-      toast.error(e.response?.data?.message || 'Failed to load');
+      if (openEvents.length > 0 && !selectedEvent) {
+        setSelectedEvent(openEvents[0]._id);
+      }
     } finally {
       setLoading(false);
     }
