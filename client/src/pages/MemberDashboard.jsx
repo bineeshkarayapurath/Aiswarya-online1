@@ -15,7 +15,7 @@ import BookFestivalRequests from '../components/BookFestivalRequests';
 import BorrowingPanel from '../components/BorrowingPanel';
 import Polls from '../components/Polls';
 import { featureEnabled, subcommitteeEnabled, moduleEnabled, CLUB } from '../lib/club';
-import { roleLabel, canAccessModule, isAuthorityUser } from '../lib/permissions';
+import { roleLabel, isLibrarian } from '../lib/permissions';
 import {
   FaFilePdf,
   FaIdCardAlt,
@@ -258,20 +258,12 @@ export default function MemberDashboard() {
         </motion.div>
       </div>
 
-      {/* Book Issue Register — the Librarian's extra duty, shown on top of the
+      {/* Book Issue Register — a Librarian-only extra duty, shown on top of the
           complete member profile above (nothing there is hidden or replaced).
-          Any administrator can also use it from their own profile. The panel
-          talks to the same /admin/issues endpoints the Authority Dashboard
-          uses, which already authorise both ADMIN and the Librarian.
-
-          isAuthorityUser(m) is required in addition to canAccessModule():
-          canAccessModule() reports true for any account with no designation
-          (a legacy rule that is safe inside the Authority Dashboard, which an
-          ordinary member cannot reach) and would otherwise expose the register
-          to every plain member here. */}
-      {moduleEnabled('issues') &&
-        isAuthorityUser(m) &&
-        canAccessModule('issues', m.designation, m.role) && (
+          Admins and Super Admins do not get this section here: they already
+          manage the register inside the Admin Panel. The panel talks to the
+          same /admin/issues endpoints the Authority Dashboard uses. */}
+      {moduleEnabled('issues') && isLibrarian(m) && (
         <div className="mt-10 border-t border-slate-200 pt-10">
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <h2 className="flex items-center gap-2 text-lg font-bold text-emerald-900">
