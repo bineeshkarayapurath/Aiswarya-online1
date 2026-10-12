@@ -175,6 +175,11 @@ export default function BookAssistant() {
             <div className="min-w-0">
               <h3 className="text-lg font-extrabold text-emerald-900">{book.title}</h3>
               <p className="text-sm font-semibold text-slate-600">{book.author}</p>
+              {book.publisher && (
+                <p className="mt-0.5 text-xs text-slate-500">
+                  <span className="font-semibold text-slate-600">പ്രസാധകർ:</span> {book.publisher}
+                </p>
+              )}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {book.genre && <span className="chip bg-emerald-900/10 text-emerald-900 dark:bg-emerald-400/15 dark:text-emerald-200">{book.genre}</span>}
@@ -193,7 +198,21 @@ export default function BookAssistant() {
             </p>
           )}
 
-          <p className="mt-3 text-sm leading-relaxed text-slate-700">{book.summary}</p>
+          <Block icon={<FaBook className="text-emerald-700" />} title="സംഗ്രഹം">
+            <p className="text-sm leading-relaxed text-slate-700">{book.summary}</p>
+          </Block>
+
+          {book.edition && (
+            <Block icon={<FaBookOpen className="text-emerald-700" />} title="എഡിഷൻ വിവരങ്ങൾ">
+              <p className="text-sm leading-relaxed text-slate-600">{book.edition}</p>
+            </Block>
+          )}
+
+          {book.conclusion && (
+            <Block icon={<FaLightbulb className="text-gold" />} title="ഉപസംഹാരം">
+              <p className="text-sm leading-relaxed text-slate-600">{book.conclusion}</p>
+            </Block>
+          )}
 
           {book.themes.length > 0 && (
             <Block icon={<FaLightbulb className="text-gold" />} title="Themes">
@@ -202,7 +221,7 @@ export default function BookAssistant() {
           )}
 
           {book.awards.length > 0 && (
-            <Block icon={<FaAward className="text-gold" />} title="Awards & honours">
+            <Block icon={<FaAward className="text-gold" />} title="അവാർഡുകളും പുരസ്കാരങ്ങളും">
               <Chips items={book.awards} tone="gold" />
             </Block>
           )}

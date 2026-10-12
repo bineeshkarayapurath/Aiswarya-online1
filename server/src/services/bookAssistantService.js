@@ -17,6 +17,13 @@ const MAX_AUTHOR = 80;
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const CACHE_MAX = 200;
 
+// Polite Malayalam reply when the model cannot identify the requested book.
+// Delivered as a clean 404 instead of a generic card, so the member never sees
+// a default English template pretending to be a real answer.
+const NOT_FOUND_MESSAGE =
+  'ഈ പുസ്തകത്തെക്കുറിച്ചുള്ള പ്രത്യേക വിവരങ്ങൾ കണ്ടെത്താൻ കഴിഞ്ഞില്ല. ' +
+  'പുസ്തകത്തിന്റെ പേരോ രചയിതാവോ ശരിയാണെന്ന് ഉറപ്പുവരുത്തി വീണ്ടും ശ്രമിക്കുക.';
+
 class AssistantError extends Error {
   constructor(code, status, message) {
     super(message);
@@ -46,24 +53,41 @@ function cacheSet(key, value) {
   while (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);
 }
 
-const SYSTEM_PROMPT = `You are the reading adviser for a community club library in Kerala whose readers speak Malayalam. You must always reply in natural, fluent Malayalam.
+// The system prompt is built per request so the exact title and author the
+// member typed are embedded in the instructions the model sees, anchoring it to
+// that specific book rather than letting it fall back to a generic answer. The
+// requested book is repeated in the user message as well: harmless redundancy
+// that nudges weaker models towards the right subject.
+function buildSystemPrompt(title, author) {
+  return `You are the reading adviser for a community club library in Kerala whose readers speak Malayalam. You must always reply in natural, fluent Malayalam.
 
 Language rules (apply to the whole reply):
 - Every piece of text you generate MUST be written in Malayalam (Malayalam script) and read naturally, the way a native Malayalam speaker would write it - never literal or machine-translated prose.
-- This includes the author's name (use the common Malayalam transliteration when one exists, otherwise keep the original), genre, summary, themes, awards, key points, similar-book reasons and discussion questions.
+- This includes the author's name (use the common Malayalam transliteration when one exists, otherwise keep the original), genre, summary, conclusion, themes, awards, key points, edition notes, similar-book reasons and discussion questions.
 - A book title normally keeps its original script, unless a standard Malayalam title is widely used for it.
 - language must name the book's original language in Malayalam (e.g. ഇംഗ്ലീഷ്, മലയാളം, ഹിന്ദി).
 - Keep machine values as-is: publishedYear stays a 4-digit number, readingTimeMinutes stays a number, and readingLevel stays exactly one of the English tokens listed below - do not translate it.
 
-Given a book title (and optionally an author), reply with STRICT JSON only - no markdown, no code fences, no commentary - using exactly these keys:
+The member is asking about THIS book:
+- Title: "${title}"
+- Author (verify it; the member may have misspelled or mis-remembered it): "${author || 'not provided'}"
+
+Entity rule:
+- If you cannot identify the book at all, or you are not confident it exists, reply with STRICT JSON exactly: {"notFound": true} and set every other field to null or an empty value. NEVER invent a book, its publisher, author, edition, year or awards.
+
+Otherwise reply with STRICT JSON only - no markdown, no code fences, no commentary - using exactly these keys:
 
 {
+  "notFound": false,
   "title": string,
   "author": string,
+  "publisher": string,
   "genre": string,
   "publishedYear": string,
+  "edition": string,
   "language": string,
   "summary": string,
+  "conclusion": string,
   "themes": string[],
   "awards": string[],
   "keyPoints": string[],
@@ -73,12 +97,16 @@ Given a book title (and optionally an author), reply with STRICT JSON only - no 
   "discussionQuestions": string[]
 }
 
-Always provide EVERY field - never omit author, publishedYear, genre, summary, themes, awards, keyPoints, readingLevel, readingTimeMinutes, similarBooks or discussionQuestions.
+Always provide EVERY field for an identified book - never omit author, publisher, genre, summary, conclusion, themes, awards, keyPoints, readingLevel, readingTimeMinutes, similarBooks or discussionQuestions.
 
-Rules:
-- summary: 3 to 5 sentences, plain prose, no spoilers for the ending, all in Malayalam.
+Field rules:
+- author (രചയിതാവ്): the book's author, in Malayalam script when a common transliteration exists.
+- publisher (പ്രസാധകർ): the publisher of the edition you describe, in Malayalam; use "" if you do not know - never invent one.
+- edition (എഡിഷൻ വിവരങ്ങൾ): edition details such as the first edition year, how many editions exist, notable reprints or a special edition; 1 to 2 short sentences in Malayalam; use "" if you do not know.
+- summary (സംഗ്രഹം): 3 to 5 sentences, plain prose, no spoilers for the ending, all in Malayalam.
+- conclusion (ഉപസംഹാരം): 2 to 3 sentences giving an overview judgement of the book - why it matters, who should read it and what readers generally take away from it - in Malayalam.
 - themes: 3 to 5 short noun phrases, in Malayalam.
-- awards: 1 to 3 notable awards or honours won by the book or its author, written in Malayalam (e.g. പുലിത്സർ പുരസ്കാരം). If you do not know of any awards, return an empty list - NEVER invent awards.
+- awards (അവാർഡുകളും പുരസ്കാരങ്ങളും): 1 to 3 notable awards or honours won by the book or its author, written in Malayalam (e.g. പുലിത്സർ പുരസ്കാരം). If you do not know of any, return an empty list - NEVER invent awards.
 - keyPoints: 3 to 5 single-sentence takeaways, in Malayalam.
 - readingLevel: exactly one of "Easy", "Moderate", "Challenging" (machine value, do not translate).
 - readingTimeMinutes: a positive whole number.
@@ -86,7 +114,8 @@ Rules:
 - discussionQuestions: 3 to 4 questions suitable for a club discussion group, in Malayalam.
 - publishedYear: the actual publication year as a 4-digit number; if you do not know it, use "" - never invent a year.
 - If the title is ambiguous, describe the best-known book with that title and set "author" to the author you assumed.
-- If you are unsure about a specific detail, give your best answer rather than refusing.`;
+- For an identified book, if you are unsure about one specific detail, give your best honest answer or an empty value for that field rather than refusing.`;
+}
 
 // Coerce whatever the model produced into the shape the UI renders. Anything
 // unusable becomes an empty list rather than an exception in the client.
@@ -110,11 +139,14 @@ function normalise(raw, askedTitle, askedAuthor) {
   const readingTime = Number(o.readingTimeMinutes);
   return {
     title: str(o.title, 200) || askedTitle,
-    author: str(o.author, 200) || askedAuthor || 'Unknown',
-    genre: str(o.genre, 120) || 'Unclassified',
+    author: str(o.author, 200) || askedAuthor || '',
+    publisher: str(o.publisher, 200),
+    genre: str(o.genre, 120),
     publishedYear: str(o.publishedYear, 20),
+    edition: str(o.edition, 400),
     language: str(o.language, 60),
-    summary: str(o.summary) || 'No summary was returned for this title.',
+    summary: str(o.summary),
+    conclusion: str(o.conclusion) || str(o.summary),
     themes: strList(o.themes, 6, 80),
     awards: strList(o.awards, 4, 180),
     keyPoints: strList(o.keyPoints, 6, 300),
@@ -170,9 +202,9 @@ async function callModel(title, author, { responseFormat = true } = {}) {
   const requestBody = {
     model: config.AI.model,
     temperature: 0.4,
-    max_tokens: 2000,
+    max_tokens: 2400,
     messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: buildSystemPrompt(title, author) },
       { role: 'user', content: userText },
     ],
   };
@@ -304,7 +336,13 @@ async function describeBook({ title, author }) {
 
   const key = cacheKey(cleanTitle, cleanAuthor);
   const cached = cacheGet(key);
-  if (cached) return { ...cached, cached: true };
+  if (cached) {
+    // A previous call already established that this title/author could not be
+    // identified. Resend the polite Malayalam notice without spending another
+    // paid upstream request.
+    if (cached.notFound) throw new AssistantError('not_found', 404, NOT_FOUND_MESSAGE);
+    return { ...cached, cached: true };
+  }
 
   // Two fallback attempts, each for a different reason:
   //   1. drop response_format, for a provider that rejects the field
@@ -317,7 +355,14 @@ async function describeBook({ title, author }) {
   let lastError;
   for (const attempt of attempts) {
     try {
-      const value = normalise(await callModel(cleanTitle, cleanAuthor, attempt), cleanTitle, cleanAuthor);
+      const raw = await callModel(cleanTitle, cleanAuthor, attempt);
+      if (raw && raw.notFound === true) {
+        // Definitive "cannot identify this book" verdict: cache it so repeats
+        // reuse the same polite notice, and skip the normal shape entirely.
+        cacheSet(key, { notFound: true });
+        throw new AssistantError('not_found', 404, NOT_FOUND_MESSAGE);
+      }
+      const value = normalise(raw, cleanTitle, cleanAuthor);
       if (lastError) console.warn(`[book-assistant] recovered on retry without response_format`);
       cacheSet(key, value);
       return { ...value, cached: false };
@@ -326,7 +371,8 @@ async function describeBook({ title, author }) {
       if (!(e instanceof AssistantError)) throw e;
       // Connection-level problems are not worth repeating, and a rejected key,
       // an empty account, a rate limit or an unknown endpoint will fail
-      // identically no matter which body we send.
+      // identically no matter which body we send. not_found is a real answer,
+      // not a transient failure, so it is returned immediately too.
       if (
         [
           'timeout',
@@ -338,6 +384,7 @@ async function describeBook({ title, author }) {
           'no_credits',
           'rate_limited',
           'upstream',
+          'not_found',
         ].includes(e.code)
       ) {
         throw e;
