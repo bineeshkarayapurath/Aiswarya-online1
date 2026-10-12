@@ -71,7 +71,7 @@ exports.listAll = async (req, res) => {
 exports.editRequest = async (req, res) => {
   try {
     const { id } = req.params;
-    const { fullName, dob, address, occupation, education, recommenderName, recommenderMemberId, email } =
+    const { fullName, dob, address, occupation, education, recommenderName, recommenderMemberId, email, photoUrl } =
       req.body;
     const user = await User.findById(id);
     if (!user) return res.status(404).json({ message: 'User not found' });
@@ -87,6 +87,10 @@ exports.editRequest = async (req, res) => {
     if (occupation !== undefined) user.occupation = occupation;
     if (education !== undefined) user.education = education;
     if (email !== undefined) user.email = email;
+    // The detail dialog edits pending applications, but it is also used for
+    // approved members, so accept an updated photo URL rather than silently
+    // dropping it. The member's own profile and navbar avatar read this field.
+    if (photoUrl !== undefined) user.photoUrl = photoUrl;
     if (recommenderName !== undefined || recommenderMemberId !== undefined) {
       user.recommender = {
         name: recommenderName !== undefined ? recommenderName : (user.recommender.name || ''),
