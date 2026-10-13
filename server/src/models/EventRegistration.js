@@ -13,7 +13,9 @@ const ParticipantSchema = new mongoose.Schema(
 const EventRegistrationSchema = new mongoose.Schema(
   {
     event: { type: mongoose.Schema.Types.ObjectId, ref: 'EventProgram', required: true, index: true },
-    subProgram: { type: mongoose.Schema.Types.ObjectId, required: true },
+    // Null for 'single' programs (no sub-program). Set for 'multi' programs to
+    // the chosen sub-program/item id.
+    subProgram: { type: mongoose.Schema.Types.ObjectId, default: null },
     subProgramName: { type: String, default: '', trim: true },
     member: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     membershipId: { type: String, default: '', index: true },

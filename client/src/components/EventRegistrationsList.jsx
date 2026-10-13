@@ -83,6 +83,7 @@ export default function EventRegistrationsList() {
                   <thead>
                     <tr className="border-b bg-slate-50">
                       <th className="px-3 py-2 text-left font-semibold">Chest No</th>
+                      <th className="px-3 py-2 text-left font-semibold">Member ID</th>
                       <th className="px-3 py-2 text-left font-semibold">Participant</th>
                       <th className="px-3 py-2 text-left font-semibold">Contact</th>
                       <th className="px-3 py-2 text-left font-semibold">Type</th>
@@ -93,6 +94,7 @@ export default function EventRegistrationsList() {
                     {list.map((r) => (
                       <tr key={r._id} className="border-b last:border-0">
                         <td className="px-3 py-2 font-bold text-emerald-700">{r.chestNumber}</td>
+                        <td className="px-3 py-2">{r.membershipId || '-'}</td>
                         <td className="px-3 py-2">{r.participantName}</td>
                         <td className="px-3 py-2">{r.contactNumber || '-'}</td>
                         <td className="px-3 py-2">{r.isGroup ? 'Group' : 'Solo'}</td>

@@ -2,14 +2,16 @@ import { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import api from '../api/client';
-import { FaPlus, FaTrashAlt, FaToggleOn, FaPowerOff, FaUsers } from 'react-icons/fa';
+import { FaPlus, FaTrashAlt, FaToggleOn, FaPowerOff, FaUsers, FaTrophy, FaLayerGroup } from 'react-icons/fa';
+
+const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '');
 
 function SubProgramRow({ sp, index, onChange, onRemove, canRemove }) {
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3">
       <input
         className="input flex-1"
-        placeholder="Sub-program name (e.g., Thiruvathirakali, Drama, Dance)"
+        placeholder="Sub-program / competition (e.g., Dance, Song, Drama)"
         value={sp.name}
         onChange={(e) => onChange(index, 'name', e.target.value)}
       />
@@ -20,7 +22,7 @@ function SubProgramRow({ sp, index, onChange, onRemove, canRemove }) {
           onChange={(e) => onChange(index, 'isGroup', e.target.checked)}
           className="accent-emerald-700"
         />
-        <FaUsers className="text-gold" /> Group event
+        <FaUsers className="text-gold" /> Group item
       </label>
       {canRemove && (
         <button
@@ -36,15 +38,71 @@ function SubProgramRow({ sp, index, onChange, onRemove, canRemove }) {
   );
 }
 
+function TypeChoice({ value, onChange }) {
+  const options = [
+    {
+      key: 'single',
+      icon: FaTrophy,
+      title: 'Single Program',
+      desc: 'One competition, e.g. Women’s Reading Competition',
+    },
+    {
+      key: 'multi',
+      icon: FaLayerGroup,
+      title: 'Multi-Item / Group Program',
+      desc: 'A headline event with many competitions, e.g. Christmas',
+    },
+  ];
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {options.map((opt) => {
+        const Icon = opt.icon;
+        const active = value === opt.key;
+        return (
+          <button
+            type="button"
+            key={opt.key}
+            onClick={() => onChange(opt.key)}
+            className={`flex items-start gap-3 rounded-2xl border p-4 text-left transition ${
+              active
+                ? 'border-emerald-600 bg-emerald-50 ring-2 ring-emerald-600/20'
+                : 'border-slate-200 bg-white hover:border-emerald-300'
+            }`}
+          >
+            <span
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                active ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-500'
+              }`}
+            >
+              <Icon />
+            </span>
+            <span>
+              <span className="block text-sm font-extrabold text-emerald-900">{opt.title}</span>
+              <span className="mt-0.5 block text-xs text-slate-500">{opt.desc}</span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function EventProgramManager() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [name, setName] = useState('');
-  const [targetAudience, setTargetAudience] = useState('Open to All');
-  const [subPrograms, setSubPrograms] = useState([{ name: '', isGroup: false }]);
   const [creating, setCreating] = useState(false);
   const [toggling, setToggling] = useState(null);
   const [deleting, setDeleting] = useState(null);
+
+  // Create form state.
+  const [type, setType] = useState('single');
+  const [name, setName] = useState('');
+  const [targetAudience, setTargetAudience] = useState('Open to All');
+  const [registrationStartDate, setRegistrationStartDate] = useState('');
+  const [registrationEndDate, setRegistrationEndDate] = useState('');
+  const [programDate, setProgramDate] = useState('');
+  const [description, setDescription] = useState('');
+  const [subPrograms, setSubPrograms] = useState([{ name: '', isGroup: false }]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -67,28 +125,45 @@ export default function EventProgramManager() {
     setSubPrograms((prev) => prev.map((sp, idx) => (idx === i ? { ...sp, [key]: val } : sp)));
   const removeSub = (i) => setSubPrograms((prev) => prev.filter((_, idx) => idx !== i));
 
+  const resetForm = () => {
+    setType('single');
+    setName('');
+    setTargetAudience('Open to All');
+    setRegistrationStartDate('');
+    setRegistrationEndDate('');
+    setProgramDate('');
+    setDescription('');
+    setSubPrograms([{ name: '', isGroup: false }]);
+  };
+
   const create = async (e) => {
     e.preventDefault();
     const trimmedName = name.trim();
-    if (!trimmedName) return toast.error('Event name is required');
+    if (!trimmedName) return toast.error('Program heading is required');
     const validSubs = subPrograms.filter((sp) => sp.name.trim());
+    if (type === 'multi' && validSubs.length === 0) {
+      return toast.error('Add at least one sub-program / competition');
+    }
     setCreating(true);
     try {
       await api.post('/events', {
+        type,
         name: trimmedName,
         targetAudience,
-        subPrograms: validSubs.map((sp) => ({
-          name: sp.name.trim(),
-          isGroup: Boolean(sp.isGroup),
-        })),
+        description: description.trim(),
+        registrationStartDate: registrationStartDate || null,
+        registrationEndDate: registrationEndDate || null,
+        programDate: programDate || null,
+        subPrograms:
+          type === 'multi'
+            ? validSubs.map((sp) => ({ name: sp.name.trim(), isGroup: Boolean(sp.isGroup) }))
+            : [],
       });
-      setName('');
-      setTargetAudience('Open to All');
-      setSubPrograms([{ name: '', isGroup: false }]);
-      toast.success('Event created successfully');
+      resetForm();
+      toast.success(type === 'multi' ? 'Multi-item program created' : 'Program created');
       load();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to create event');
+      toast.error(err.response?.data?.message || 'Failed to create program');
     } finally {
       setCreating(false);
     }
@@ -108,14 +183,14 @@ export default function EventProgramManager() {
   };
 
   const del = async (id) => {
-    if (!window.confirm('Delete this event? All associated registrations will also be affected.')) return;
+    if (!window.confirm('Delete this program? All associated registrations will also be affected.')) return;
     setDeleting(id);
     try {
       await api.delete(`/events/${id}`);
-      toast.success('Event deleted');
+      toast.success('Program deleted');
       load();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to delete event');
+      toast.error(err.response?.data?.message || 'Failed to delete program');
     } finally {
       setDeleting(null);
     }
@@ -124,14 +199,21 @@ export default function EventProgramManager() {
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="mb-4 text-lg font-bold text-emerald-900">Create Event / Program</h3>
-        <form onSubmit={create} className="space-y-4">
+        <h3 className="mb-4 text-lg font-bold text-emerald-900">Create Program / Event</h3>
+        <form onSubmit={create} className="space-y-5">
+          <div>
+            <label className="label">Program Type *</label>
+            <TypeChoice value={type} onChange={setType} />
+          </div>
+
           <div className="grid gap-4 md:grid-cols-2">
             <div>
-              <label className="label">Event Name *</label>
+              <label className="label">{type === 'multi' ? 'Main Event Heading *' : 'Program Heading / Title *'}</label>
               <input
                 className="input"
-                placeholder="e.g., Annual Celebration 2027, Christmas Competitions"
+                placeholder={
+                  type === 'multi' ? 'e.g., Christmas & New Year Celebrations' : 'e.g., Women’s Reading Competition'
+                }
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
@@ -151,41 +233,86 @@ export default function EventProgramManager() {
             </div>
           </div>
 
+          <div className="grid gap-4 md:grid-cols-3">
+            <div>
+              <label className="label">Registration Start Date</label>
+              <input
+                type="date"
+                className="input"
+                value={registrationStartDate}
+                onChange={(e) => setRegistrationStartDate(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="label">Registration Close Date</label>
+              <input
+                type="date"
+                className="input"
+                value={registrationEndDate}
+                onChange={(e) => setRegistrationEndDate(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="label">Program Date</label>
+              <input
+                type="date"
+                className="input"
+                value={programDate}
+                onChange={(e) => setProgramDate(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {type === 'multi' && (
+            <div>
+              <div className="mb-3 flex items-center justify-between">
+                <span className="font-semibold text-slate-700">Sub-programs / Competitions *</span>
+                <button type="button" onClick={addSub} className="btn-outline flex items-center gap-2 text-xs">
+                  <FaPlus /> Add Sub-program
+                </button>
+              </div>
+              <p className="mb-2 text-xs text-slate-500">
+                Each item members can choose from a dropdown. Tick “Group item” for team entries (e.g. group dance).
+              </p>
+              <div className="space-y-2">
+                {subPrograms.map((sp, i) => (
+                  <SubProgramRow
+                    key={i}
+                    sp={sp}
+                    index={i}
+                    onChange={updateSub}
+                    onRemove={removeSub}
+                    canRemove={subPrograms.length > 1}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
           <div>
-            <div className="mb-3 flex items-center justify-between">
-              <span className="font-semibold text-slate-700">Sub-programs / Competitions</span>
-              <button type="button" onClick={addSub} className="btn-outline flex items-center gap-2 text-xs">
-                <FaPlus /> Add Sub-program
-              </button>
-            </div>
-            <div className="space-y-2">
-              {subPrograms.map((sp, i) => (
-                <SubProgramRow
-                  key={i}
-                  sp={sp}
-                  index={i}
-                  onChange={updateSub}
-                  onRemove={removeSub}
-                  canRemove={subPrograms.length > 1}
-                />
-              ))}
-            </div>
+            <label className="label">Description</label>
+            <textarea
+              className="input min-h-[80px]"
+              placeholder="Short description shown to members"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
           </div>
 
           <div className="flex justify-end">
             <button className="btn-primary disabled:opacity-60" type="submit" disabled={creating}>
-              {creating ? 'Creating...' : 'Create Event'}
+              {creating ? 'Creating...' : type === 'multi' ? 'Create Multi-Item Program' : 'Create Program'}
             </button>
           </div>
         </form>
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="mb-4 text-lg font-bold text-emerald-900">Manage Events ({events.length})</h3>
+        <h3 className="mb-4 text-lg font-bold text-emerald-900">Manage Programs ({events.length})</h3>
         {loading ? (
-          <p className="py-8 text-center text-sm text-slate-500">Loading events...</p>
+          <p className="py-8 text-center text-sm text-slate-500">Loading programs...</p>
         ) : events.length === 0 ? (
-          <p className="py-8 text-center text-sm text-slate-500">No events created yet</p>
+          <p className="py-8 text-center text-sm text-slate-500">No programs created yet</p>
         ) : (
           <div className="space-y-3">
             {events.map((ev, i) => (
@@ -200,19 +327,25 @@ export default function EventProgramManager() {
                   <div>
                     <h4 className="font-bold text-slate-800">{ev.name}</h4>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                      <span className="rounded-full bg-indigo-100 px-2 py-0.5 font-semibold text-indigo-700">
+                        {ev.type === 'single' ? 'Single Program' : `Multi-Item (${ev.subPrograms?.length || 0})`}
+                      </span>
                       <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700">
                         {ev.targetAudience}
                       </span>
                       <span
                         className={`rounded-full px-2 py-0.5 font-semibold ${
-                          ev.isRegistrationOpen
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : 'bg-slate-200 text-slate-600'
+                          ev.isRegistrationOpen ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'
                         }`}
                       >
                         {ev.isRegistrationOpen ? 'Registration OPEN' : 'Registration CLOSED'}
                       </span>
-                      <span className="text-slate-500">{ev.subPrograms?.length || 0} sub-program(s)</span>
+                      {ev.programDate && <span className="text-slate-500">Program: {fmtDate(ev.programDate)}</span>}
+                      {(ev.registrationStartDate || ev.registrationEndDate) && (
+                        <span className="text-slate-500">
+                          Reg: {fmtDate(ev.registrationStartDate) || '—'} → {fmtDate(ev.registrationEndDate) || '—'}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -238,9 +371,10 @@ export default function EventProgramManager() {
                     </button>
                   </div>
                 </div>
+                {ev.description && <p className="mt-2 text-xs text-slate-600">{ev.description}</p>}
                 {ev.subPrograms?.length > 0 && (
                   <div className="mt-3 rounded-lg bg-white p-3">
-                    <div className="text-xs font-semibold text-slate-600">Sub-programs:</div>
+                    <div className="text-xs font-semibold text-slate-600">Sub-programs / competitions:</div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {ev.subPrograms.map((sp) => (
                         <span
