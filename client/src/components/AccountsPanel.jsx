@@ -15,6 +15,7 @@ import {
   Settings2,
   ArrowLeftRight,
   X,
+  Trash2,
 } from 'lucide-react';
 import api from '../api/client';
 import Spinner from './Spinner';
@@ -76,9 +77,29 @@ export default function AccountsPanel() {
   const years = [];
   for (let y = currentYear; y >= 2020; y--) years.push(y);
 
+  const [deleting, setDeleting] = useState({ id: null, type: null });
   const accounts = [...data.accounts].sort((a, b) =>
     sort === 'amount' ? b.amount - a.amount : new Date(b.date || 0) - new Date(a.date || 0)
   );
+
+  const deleteEntry = async (id, type) => {
+    const msg = type === 'transfer' ? 'Delete this transfer? This will recalculate balances.' : 'Delete this ledger entry? This will recalculate balances.';
+    if (!window.confirm(msg)) return;
+    setDeleting({ id, type });
+    try {
+      if (type === 'transfer') {
+        await api.delete(`/admin/accounts/transfers/${id}`);
+      } else {
+        await api.delete(`/admin/accounts/${id}`);
+      }
+      toast.success('Deleted');
+      await load();
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Delete failed');
+    } finally {
+      setDeleting({ id: null, type: null });
+    }
+  };
 
   const { balances, byCategory } = data;
 
@@ -165,9 +186,19 @@ export default function AccountsPanel() {
                     {a.details && <span className="truncate">· {a.details}</span>}
                   </p>
                 </div>
-                <span className={`shrink-0 text-sm font-extrabold ${a.type === 'Income' ? 'text-emerald-700' : 'text-rose-600'}`}>
-                  {a.type === 'Income' ? '+' : '−'}{inr(a.amount)}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`shrink-0 text-sm font-extrabold ${a.type === 'Income' ? 'text-emerald-700' : 'text-rose-600'}`}>
+                    {a.type === 'Income' ? '+' : '−'}{inr(a.amount)}
+                  </span>
+                  <button
+                    onClick={() => deleteEntry(a._id, 'entry')}
+                    disabled={deleting.id === a._id && deleting.type === 'entry'}
+                    className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                    title="Delete entry"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
@@ -190,7 +221,17 @@ export default function AccountsPanel() {
                   </p>
                   <p className="mt-0.5 truncate text-xs text-slate-400">{t.note || 'Internal transfer'} · {fmtDate(t.date)}</p>
                 </div>
-                <span className="shrink-0 font-bold text-slate-600">{inr(t.amount)}</span>
+                <div className="flex items-center gap-2">
+                  <span className="shrink-0 font-bold text-slate-600">{inr(t.amount)}</span>
+                  <button
+                    onClick={() => deleteEntry(t._id, 'transfer')}
+                    disabled={deleting.id === t._id && deleting.type === 'transfer'}
+                    className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                    title="Delete transfer"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
