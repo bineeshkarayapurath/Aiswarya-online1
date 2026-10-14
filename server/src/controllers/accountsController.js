@@ -1,4 +1,4 @@
-const Account = require('../models/Account');
+﻿const Account = require('../models/Account');
 const AccountTransfer = require('../models/AccountTransfer');
 const { getSettings, updateSettings, computeBalances } = require('../services/accountService');
 
@@ -182,10 +182,32 @@ exports.createTransfer = async (req, res) => {
 
     const balances = await computeBalances();
     return res.status(201).json({
-      message: `${from} → ${to} transfer recorded`,
+      message: `${from} â†’ ${to} transfer recorded`,
       transfer: { ...doc.toObject(), _id: String(doc._id) },
       balances,
     });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};exports.deleteAccount = async (req, res) => {
+  try {
+    const acc = await Account.findById(req.params.id);
+    if (!acc) return res.status(404).json({ message: 'Entry not found' });
+    await acc.deleteOne();
+    const balances = await computeBalances();
+    return res.json({ message: 'Entry deleted', balances });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+exports.deleteTransfer = async (req, res) => {
+  try {
+    const tr = await AccountTransfer.findById(req.params.id);
+    if (!tr) return res.status(404).json({ message: 'Transfer not found' });
+    await tr.deleteOne();
+    const balances = await computeBalances();
+    return res.json({ message: 'Transfer deleted', balances });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }

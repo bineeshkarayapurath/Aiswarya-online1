@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const upload = require('../middleware/upload');
 const { galleryUpload } = upload;
 const { requireAuth, optionalAuth, requireSuperAdmin, requireMember, requireDesignations, requireOfficerOrAdmin } = require('../middleware/auth');
@@ -47,7 +47,7 @@ const router = express.Router();
 router.get('/public/stats', pub.stats);
 router.get('/public/catalog', pub.catalog);
 router.get('/public/settings', settings.getSettings);
-// Officer signature images — any signed-in member, since they are printed on the
+// Officer signature images â€” any signed-in member, since they are printed on the
 // ID cards members can download. Deliberately separate from /public/settings so
 // the signatures are not exposed to anonymous visitors.
 router.get('/settings/signatures', requireAuth, settings.getSignatures);
@@ -66,10 +66,10 @@ router.get('/public/polls/:idOrSlug', optionalAuth, polls.getPublic);
 // Generic image upload (multipart, field "photos"). Public by design so new
 // member registration can attach a photo before an account exists. Files are
 // stored under server storage/ (served via /uploads/) or relayed to ImgBB when
-// IMG_BB_API_KEY is configured — returns permanent public HTTPS URLs.
+// IMG_BB_API_KEY is configured â€” returns permanent public HTTPS URLs.
 router.post('/upload', galleryUpload.array('photos', 20), uploadCtrl.uploadPhotos);
 
-// Auth — phone number + bcrypt password. No OTP / SMS delivery anywhere.
+// Auth â€” phone number + bcrypt password. No OTP / SMS delivery anywhere.
 // authLimiter counts only failed attempts, so a correct sign-in is never
 // throttled while a sweep against set-password's date-of-birth check is.
 router.post('/auth/register', signupLimiter, upload.single('photo'), registerRules, auth.register);
@@ -79,11 +79,11 @@ router.post('/auth/login', authLimiter, loginRules, auth.login);
 router.post('/auth/set-password', authLimiter, setPasswordRules, auth.setPassword);
 router.get('/auth/me', requireAuth, auth.getMe);
 
-// Authority zone — same phone + password credential, gated on the account
+// Authority zone â€” same phone + password credential, gated on the account
 // actually holding an authority role (see authController.adminLogin).
 router.post('/auth/admin/login', authLimiter, adminLoginRules, auth.adminLogin);
 
-// Admin panel — Approval workflows & committee management (executive roles)
+// Admin panel â€” Approval workflows & committee management (executive roles)
 router.post(
   '/admin/requests/:id/approve',
   requireAuth,
@@ -155,7 +155,7 @@ router.put(
 
 
 
-// Executive Committee (main) — designation management (executive officers)
+// Executive Committee (main) â€” designation management (executive officers)
 router.get('/admin/committee/executive', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), admin.listExecutiveCommittee);
 router.get('/admin/committee/search', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), admin.searchCommitteeMembers);
 router.post('/admin/committee/designation', requireAuth, requireOfficerOrAdmin(EXEC_OFFICERS), admin.setDesignation);
@@ -203,7 +203,7 @@ router.post(
   minutes.rejectProgram
 );
 
-// Accounts & Finance (Treasurer) — a Treasurer reaches this module on the
+// Accounts & Finance (Treasurer) â€” a Treasurer reaches this module on the
 // strength of the designation alone; no top-level ADMIN role required.
 router.get('/admin/accounts', requireAuth, requireOfficerOrAdmin(['Treasurer']), accounts.listAccounts);
 router.get('/admin/accounts/settings', requireAuth, requireOfficerOrAdmin(['Treasurer']), accounts.getSettings);
@@ -212,7 +212,7 @@ router.post('/admin/accounts', requireAuth, requireOfficerOrAdmin(['Treasurer'])
 router.get('/admin/accounts/transfers', requireAuth, requireOfficerOrAdmin(['Treasurer']), accounts.listTransfers);
 router.post('/admin/accounts/transfers', requireAuth, requireOfficerOrAdmin(['Treasurer']), accounts.createTransfer);
 
-// Receipts & Vouchers (Treasurer) — auto-syncs with the Accounts ledger.
+// Receipts & Vouchers (Treasurer) â€” auto-syncs with the Accounts ledger.
 router.get('/admin/vouchers/members', requireAuth, requireOfficerOrAdmin(['Treasurer']), vouchers.searchMembers);
 router.get('/admin/vouchers', requireAuth, requireOfficerOrAdmin(['Treasurer']), vouchers.listVouchers);
 router.get('/admin/vouchers/:id', requireAuth, requireOfficerOrAdmin(['Treasurer']), vouchers.getVoucher);
@@ -284,17 +284,17 @@ router.post('/admin/issues/:id/return', requireAuth, requireOfficerOrAdmin(['Lib
 
 // Events / Program Registrations (dynamic)
 const EVENT_MANAGERS = [...EXEC_OFFICERS, 'Librarian'];
-// Upcoming Sports & Cultural events — the public "Upcoming Programs" section on
+// Upcoming Sports & Cultural events â€” the public "Upcoming Programs" section on
 // the home page is driven by the records an officer maintains in the admin
 // "Upcoming Events" box (also embedded in /public/catalog; see publicController).
 router.get('/public/events', upcomingEvents.list);
 
 router.get('/events', events.listEvents);
-router.get('/events/open', requireAuth, requireMember, events.getOpenForUser);
+router.get('/events/open', requireAuth, requireMember, events.getOpen);
 router.get('/events/:id', events.getEvent);
 router.post('/events', requireAuth, requireOfficerOrAdmin(EVENT_MANAGERS), events.createEvent);
 router.put('/events/:id', requireAuth, requireOfficerOrAdmin(EVENT_MANAGERS), events.updateEvent);
-router.put('/events/:id/toggle', requireAuth, requireOfficerOrAdmin(EVENT_MANAGERS), events.toggleRegistration);
+router.put('/events/:id/toggle', requireAuth, requireOfficerOrAdmin(EVENT_MANAGERS), events.toggle);
 router.delete('/events/:id', requireAuth, requireOfficerOrAdmin(EVENT_MANAGERS), events.deleteEvent);
 
 router.get('/event-registrations', requireAuth, requireOfficerOrAdmin(EVENT_MANAGERS), events.listRegistrations);
@@ -372,4 +372,9 @@ router.post(
   committee.resubmitProgram
 );
 
+
+
+
+router.delete('/admin/accounts/:id', requireAuth, requireOfficerOrAdmin(['Treasurer']), accounts.deleteAccount);
+router.delete('/admin/accounts/transfers/:id', requireAuth, requireOfficerOrAdmin(['Treasurer']), accounts.deleteTransfer);
 module.exports = router;
